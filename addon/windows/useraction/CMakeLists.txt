@@ -3,6 +3,8 @@ project(HwpxC2paAddon LANGUAGES CXX)
 
 # Build for the same bitness as Hwp.exe (32-bit for Hangul 2022 and earlier):
 #   cmake -A Win32 -B build && cmake --build build --config Release
+# Static C runtime: the DLL must load in Hangul without a separate VC++ redistributable.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_definitions(-DUNICODE -D_UNICODE)

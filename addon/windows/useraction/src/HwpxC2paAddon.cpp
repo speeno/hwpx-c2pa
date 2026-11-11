@@ -17,6 +17,7 @@
 // Copyright (c) 2026 Dongsun Nam (speeno). MIT License.
 #include <windows.h>
 #include <tchar.h>
+#include <cwchar>
 #include <string>
 
 #include "Dispatch.h"
@@ -33,6 +34,29 @@ std::wstring Utf8ToWide(const std::string& s) {
     std::wstring w(n, L'\0');
     MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), &w[0], n);
     return w;
+}
+
+// Appends a line to %LOCALAPPDATA%\\hwpx-c2pa\\addon-log.txt: shows whether and how Hangul calls the module.
+void Trace(const wchar_t* what, const wchar_t* detail = L"") {
+    wchar_t dir[MAX_PATH];
+    DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", dir, MAX_PATH);
+    if (n == 0 || n >= MAX_PATH) return;
+    std::wstring path = std::wstring(dir) + L"\\hwpx-c2pa\\addon-log.txt";
+    HANDLE h = CreateFileW(path.c_str(), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                           OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return;
+    SYSTEMTIME t;
+    GetLocalTime(&t);
+    wchar_t line[512];
+    int len = swprintf(line, 512, L"%02d:%02d:%02d pid %lu %ls %ls\r\n", t.wHour, t.wMinute, t.wSecond,
+                       GetCurrentProcessId(), what, detail);
+    if (len > 0) {
+        char utf8[1536];
+        int m = WideCharToMultiByte(CP_UTF8, 0, line, len, utf8, sizeof(utf8), nullptr, nullptr);
+        DWORD written = 0;
+        WriteFile(h, utf8, (DWORD)m, &written, nullptr);
+    }
+    CloseHandle(h);
 }
 
 std::wstring CliPath() {
@@ -184,6 +208,7 @@ int InstallToolbar(IDispatch* hwp) {
 class Module : public IHncUserActionModule {
 public:
     LPCTSTR EnumAction(int i) override {
+        Trace(L"EnumAction", i == 0 ? L"0" : L"n");
         return (i >= 0 && i < (int)(sizeof(kActions) / sizeof(kActions[0]))) ? kActions[i] : nullptr;
     }
     BOOL GetActionImage(LPCTSTR, UINT, HBITMAP* bmp, int* index) override {
@@ -196,6 +221,7 @@ public:
         return TRUE;
     }
     int DoAction(LPCTSTR action, LPDISPATCH hwp) override {
+        Trace(L"DoAction", action ? action : L"(null)");
         if (!action || !hwp) return 0;
         if (_tcscmp(action, kActions[0]) == 0) return SaveAndSign(hwp);
         if (_tcscmp(action, kActions[1]) == 0) return Verify(hwp);
@@ -210,5 +236,11 @@ Module g_module;
 
 // Exported through HwpxC2paAddon.def.
 extern "C" IHncUserActionModule* __stdcall QueryUserActionInterface() {
+    Trace(L"QueryUserActionInterface");
     return &g_module;
+}
+
+BOOL WINAPI DllMain(HINSTANCE, DWORD reason, LPVOID) {
+    if (reason == DLL_PROCESS_ATTACH) Trace(L"DllMain attach");
+    return TRUE;
 }
