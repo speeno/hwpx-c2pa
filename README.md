@@ -4,7 +4,7 @@
 
 **Engine and Hangul add-ons that record and show the provenance and edit history of HWPX (OWPML, KS X 6101) documents as C2PA Content Credentials**
 
-Author: Dongsun Nam (speeno) · License: MIT · Status: alpha (0.1.0)
+Author: Dongsun Nam (speeno) · License: MIT · Third-party notices: [NOTICE.md](NOTICE.md) · Status: alpha (0.1.0)
 
 ## About this project
 
@@ -65,7 +65,7 @@ powershell -ExecutionPolicy Bypass -File addon\windows\install.ps1 -Dll path\to\
 
 The script installs Python 3.12 (only if missing) and the engine in a private environment, fetches the C2PA library, creates test certificates and settings, picks the 32-bit or 64-bit add-in DLL to match `Hwp.exe`, registers it for the current user (`HKCU\Software\Hnc\HwpUserAction\Modules`), copies the samples to `Documents\hwpx-c2pa-samples` and puts a shortcut **Hangul C2PA** on the desktop. The DLL is built by CI (artifacts `HwpxC2paAddon-Win32` and `HwpxC2paAddon-x64` of the `test` workflow); without `-Dll` the script takes it from the latest release.
 
-**Start Hangul with the "Hangul C2PA" shortcut** (or `hwpx-c2pa hangul [file]`). Hangul loads this kind of add-in only when a program asks it to through HWP Automation, so a Hangul started in the usual way does not show it.
+**Start Hangul with the "Hangul C2PA" shortcut** (or `hwpx-c2pa hangul [file]`). Hangul loads this kind of add-in when a program asks it to through HWP Automation, which is what the shortcut does. In the test, after that first start, the buttons were also present in a Hangul started in the usual way; whether saving is recorded there as well has not been confirmed, so the shortcut is the supported way.
 
 What the add-in does in Hangul:
 
@@ -195,4 +195,4 @@ The tests build a synthetic OWPML-shaped package; no Hancom software or sample d
 - KS X 6101:2024 (OWPML)
 - Hancom HWP Automation: https://developer.hancom.com/hwpautomation · manuals: https://github.com/hancom-io/devcenter-archive
 
-"한글", "한컴오피스", "HWP", "HWPX" are names or trademarks of Hancom Inc. This project is independent of Hancom and of the C2PA.
+"한글", "한컴오피스", "HWP", "HWPX" are names or trademarks of Hancom Inc. This project is independent of Hancom and of the C2PA. Trademarks, third-party licences, the origin of the samples and Hancom's terms for HWP Automation are set out in [NOTICE.md](NOTICE.md).

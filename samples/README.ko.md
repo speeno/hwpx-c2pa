@@ -12,3 +12,5 @@ hwpx-c2pa verify  ko/4-tampered.hwpx                            # 무효: 기록
 ```
 
 인증서는 시험용이다. 개인 키는 저장소에 없다.
+
+패키지의 틀은 python-hwpx(Apache-2.0)에서 왔다. [../NOTICE.ko.md](../NOTICE.ko.md) 참조.

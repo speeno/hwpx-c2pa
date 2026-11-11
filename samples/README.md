@@ -12,3 +12,5 @@ hwpx-c2pa verify  en/4-tampered.hwpx                            # Invalid: chang
 ```
 
 The certificates are for testing; the private key is not in the repository.
+
+The package skeleton comes from python-hwpx (Apache-2.0); see [../NOTICE.md](../NOTICE.md).

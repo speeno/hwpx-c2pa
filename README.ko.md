@@ -4,7 +4,7 @@
 
 **HWPX(아래한글, OWPML · KS X 6101) 문서의 출처와 수정 이력을 C2PA 콘텐츠 자격 증명으로 기록하고 확인하는 엔진과 한글 애드온**
 
-개발: Dongsun Nam (speeno) · 라이선스: MIT · 상태: 알파 (0.1.0)
+개발: Dongsun Nam (speeno) · 라이선스: MIT · 제3자 고지: [NOTICE.ko.md](NOTICE.ko.md) · 상태: 알파 (0.1.0)
 
 ## 이 프로젝트에 대하여
 
@@ -65,7 +65,7 @@ powershell -ExecutionPolicy Bypass -File addon\windows\install.ps1 -Dll 경로\H
 
 스크립트가 하는 일: Python 3.12 설치(없을 때만), 전용 환경에 엔진 설치, C2PA 라이브러리 받기, 시험용 인증서와 설정 만들기, `Hwp.exe`가 32비트인지 64비트인지 확인해 맞는 애드온 DLL 선택, 현재 사용자에게 등록(`HKCU\Software\Hnc\HwpUserAction\Modules`), 샘플을 `문서\hwpx-c2pa-samples`에 복사, 바탕 화면에 **Hangul C2PA** 바로 가기 만들기. DLL은 CI가 빌드한다(`test` 워크플로의 `HwpxC2paAddon-Win32`, `HwpxC2paAddon-x64` 아티팩트). `-Dll`을 주지 않으면 최신 릴리스에서 받는다.
 
-**한글은 "Hangul C2PA" 바로 가기로 시작한다**(또는 `hwpx-c2pa hangul [파일]`). 한글은 이런 종류의 애드온을 오토메이션으로 요청받을 때만 불러온다. 그래서 평소처럼 시작한 한글에는 애드온이 보이지 않는다.
+**한글은 "Hangul C2PA" 바로 가기로 시작한다**(또는 `hwpx-c2pa hangul [파일]`). 한글은 이런 종류의 애드온을 오토메이션으로 요청받을 때 불러오며, 바로 가기가 그 일을 한다. 시험에서는 그렇게 한 번 시작한 뒤로 평소처럼 시작한 한글에도 버튼이 있었다. 그 상태에서 저장도 기록되는지는 확인하지 못했으므로, 바로 가기로 시작하는 것을 기준으로 한다.
 
 한글 안에서 애드온이 하는 일:
 
@@ -195,4 +195,4 @@ pip install -e ".[dev]" && hwpx-c2pa fetch-lib && pytest -q
 - KS X 6101:2024 (OWPML)
 - 한글 오토메이션: https://developer.hancom.com/hwpautomation · 매뉴얼: https://github.com/hancom-io/devcenter-archive
 
-"한글", "한컴오피스", "HWP", "HWPX"는 (주)한글과컴퓨터의 이름 또는 상표다. 이 프로젝트는 한컴 및 C2PA와 관계없는 독립 프로젝트다.
+"한글", "한컴오피스", "HWP", "HWPX"는 (주)한글과컴퓨터의 이름 또는 상표다. 이 프로젝트는 한컴 및 C2PA와 관계없는 독립 프로젝트다. 상표, 제3자 라이선스, 샘플의 출처, 한글 오토메이션 사용 조건은 [NOTICE.ko.md](NOTICE.ko.md)에 정리했다.
