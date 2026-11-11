@@ -6,12 +6,60 @@
 
 개발: Dongsun Nam (speeno) · 라이선스: MIT · 상태: 알파 (0.1.0)
 
-![출처와 수정 이력 창](docs/screenshots/04-view-edit-history.png)
-
 - 동작 원리(블록 다이어그램): [docs/how-it-works.ko.md](docs/how-it-works.ko.md)
 - 적용 사례와 화면: [docs/case-study.ko.md](docs/case-study.ko.md)
 - 한국어·영어 샘플: [samples/](samples/README.ko.md)
 - 한글의 C2PA 지원 문제점과 개선점: [docs/hangul-c2pa-support.ko.md](docs/hangul-c2pa-support.ko.md)
+
+## 미리 보기
+
+**1. 판 기록과 이력 확인** (`sign`, `history`): 판 1을 만들고, 한글에서 고친 판 2를 기록한 뒤 무엇이 바뀌었는지 본다.
+
+![명령줄: 기록과 이력](docs/screenshots/01-cli-record-history.png)
+
+**2. 문서의 출처와 수정 이력** (`view`): 판마다 누가, 언제, 어떤 프로그램으로 기록했는지, 이전 판에서 무엇이 바뀌었는지, 문서 안 그림이 어디서 왔는지를 보여 준다.
+
+![출처와 수정 이력](docs/screenshots/04-view-edit-history.png)
+
+**3. 기록 없이 바뀐 문서**: 이력이 지금 문서를 설명하지 못한다고 알리고, 달라진 파트를 표시한다.
+
+![기록과 맞지 않음](docs/screenshots/05-view-changed-after-record.png)
+
+**4. 애드온 없이 한글에서 저장한 문서**: 기록이 사라진다.
+
+![출처 기록 없음](docs/screenshots/03-view-after-hangul-save-no-record.png)
+
+**5. 한글(Windows) 안에서**: 한글 창에 애드온이 붙은 화면은 첫 Windows 시험에서 모으는 중이며, 여기에 추가할 예정이다.
+
+## 한글 애드온 설치
+
+### Windows: 한글 안의 추가 기능
+
+Windows용 한글과 이 저장소(클론 또는 ZIP)가 필요하다. 관리자 권한은 필요 없다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File addon\windows\install.ps1 -Dll 경로\HwpxC2paAddon.dll
+```
+
+스크립트가 하는 일: Python 3.12 설치(없을 때만), 전용 환경에 엔진 설치, C2PA 라이브러리 받기, 시험용 인증서와 설정 만들기, `Hwp.exe`가 32비트인지 64비트인지 확인해 맞는 애드온 DLL 선택, 현재 사용자에게 등록(`HKCU\Software\Hnc\HwpUserAction\Modules`), 샘플을 `문서\hwpx-c2pa-samples`에 복사. DLL은 CI가 빌드한다(`test` 워크플로의 `HwpxC2paAddon-Win32`, `HwpxC2paAddon-x64` 아티팩트). `-Dll`을 주지 않으면 최신 릴리스에서 받는다.
+
+설치 후 한글을 다시 시작한다. 애드온은 두 가지 동작을 제공한다.
+
+| 동작 | 하는 일 |
+|---|---|
+| C2PA 기록 저장 (`HwpxC2paSaveSign`) | 문서를 저장하고 새 판으로 기록한다: 편집 프로그램, 변경 요약, 이전 판 연결 |
+| C2PA 출처 확인 (`HwpxC2paVerify`) | 열려 있는 문서의 출처와 수정 이력을 보여 준다 |
+
+상태: 설치 스크립트와 애드온은 Windows용 한글에서 첫 시험 중이다. 결과와 화면은 이어서 올린다. 제거: `addon\windows\useraction\register.ps1 -Remove`.
+
+### macOS 또는 애드온 없이: 폴더 감시
+
+Mac용 한글에는 애드인 인터페이스가 없다. 폴더 감시가 그 폴더에 저장되는 `.hwpx`를 매번 새 판으로 기록한다.
+
+```bash
+pip install "hwpx-c2pa[devcerts] @ git+https://github.com/speeno/hwpx-c2pa" && hwpx-c2pa fetch-lib
+hwpx-c2pa watch ~/Documents/Recorded --cert certs/signer-chain.pem --key certs/signer.key
+```
 
 ## 무엇을 하나
 

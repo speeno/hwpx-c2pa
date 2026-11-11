@@ -6,12 +6,60 @@
 
 Author: Dongsun Nam (speeno) · License: MIT · Status: alpha (0.1.0)
 
-![Provenance and history window](docs/screenshots/04-view-edit-history.png)
-
 - How it works, with block diagrams: [docs/how-it-works.md](docs/how-it-works.md)
 - Worked example with screens: [docs/case-study.md](docs/case-study.md)
 - Korean and English samples: [samples/](samples/)
 - Problems and improvements for C2PA support in Hangul: [docs/hangul-c2pa-support.md](docs/hangul-c2pa-support.md)
+
+## Preview
+
+**1. Recording versions and reading the history** (`sign`, `history`): version 1 created, version 2 edited in Hangul, with what changed.
+
+![Command line: record and history](docs/screenshots/01-cli-record-history.png)
+
+**2. Provenance and edit history of a document** (`view`): who recorded each version, when, with which program, what changed since the previous version, and where the picture inside comes from.
+
+![Provenance and edit history](docs/screenshots/06-view-edit-history-en-sample.png)
+
+**3. A document changed without a record**: the history no longer describes the document, and the part that differs is marked.
+
+![Does not match the record](docs/screenshots/05-view-changed-after-record.png)
+
+**4. A document saved by Hangul without the add-on**: the record is gone.
+
+![No record](docs/screenshots/03-view-after-hangul-save-no-record.png)
+
+**5. In Hangul (Windows)**: screens of the add-in in the Hangul window are being collected from the first Windows test and will be added here.
+
+## Install the Hangul add-on
+
+### Windows: add-in inside Hangul
+
+Needs Hangul for Windows and this repository (clone or ZIP). No administrator rights.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File addon\windows\install.ps1 -Dll path\to\HwpxC2paAddon.dll
+```
+
+The script installs Python 3.12 (only if missing) and the engine in a private environment, fetches the C2PA library, creates test certificates and settings, picks the 32-bit or 64-bit add-in DLL to match `Hwp.exe`, registers it for the current user (`HKCU\Software\Hnc\HwpUserAction\Modules`) and copies the samples to `Documents\hwpx-c2pa-samples`. The DLL is built by CI (artifacts `HwpxC2paAddon-Win32` and `HwpxC2paAddon-x64` of the `test` workflow); without `-Dll` the script takes it from the latest release.
+
+Then restart Hangul. The add-in provides two actions:
+
+| Action | What it does |
+|---|---|
+| C2PA Save & Record (`HwpxC2paSaveSign`) | Saves the document and records it as a new version: editor, change summary, previous version chained |
+| C2PA Provenance (`HwpxC2paVerify`) | Shows the origin and edit history of the open document |
+
+Status: the installer and the add-in are in their first test on Hangul for Windows; results and screens will follow. To remove: `addon\windows\useraction\register.ps1 -Remove`.
+
+### macOS, or without an add-in: folder watcher
+
+Hangul for Mac has no add-in interface. The watcher records every `.hwpx` saved in a folder as a new version:
+
+```bash
+pip install "hwpx-c2pa[devcerts] @ git+https://github.com/speeno/hwpx-c2pa" && hwpx-c2pa fetch-lib
+hwpx-c2pa watch ~/Documents/Recorded --cert certs/signer-chain.pem --key certs/signer.key
+```
 
 ## What it does
 
