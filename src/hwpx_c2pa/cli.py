@@ -50,7 +50,8 @@ def cmd_sign(args) -> int:
     from .engine import sign_file
     extra = json.loads(Path(args.manifest).read_text(encoding="utf-8")) if args.manifest else None
     out = sign_file(args.input, _signer(args), args.output, parent=args.parent,
-                    components=not args.no_components, extra=extra, note=args.note)
+                    components=not args.no_components, extra=extra, note=args.note,
+                    title=args.title)
     note = "" if out == Path(args.output or args.input) else " (file was locked; wrote a copy)"
     _emit({"signed": str(out), "locked_copy": bool(note)}, args.json, [f"signed: {out}{note}"])
     return 0
@@ -203,6 +204,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="record this version: embed signed Content Credentials "
                             "(in place unless -o)")
     s.add_argument("--note", help="what was done in this version, in your words")
+    s.add_argument("--title", help="document title in the record (default: the output file name)")
     s.add_argument("input"), s.add_argument("-o", "--output")
     s.add_argument("--parent", help="previous recorded version (parentOf): keeps the history")
     s.add_argument("--no-components", action="store_true",

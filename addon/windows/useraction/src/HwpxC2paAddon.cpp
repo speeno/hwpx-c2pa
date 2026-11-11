@@ -8,6 +8,7 @@
 //                      Content Credentials (editor, change summary; the version on disk
 //                      before the save becomes the parentOf ingredient)
 //   HwpxC2paVerify   : show the provenance and edit history of the active document
+//   HwpxC2paSaveAs   : Hangul's "save as" dialog, then the same recording
 //   HwpxC2paToolbar  : add a toolbar with the two buttons above
 //
 // The C2PA work is done by the hwpx-c2pa command line tool (Python), started as
@@ -18,6 +19,7 @@
 #include <windows.h>
 #include <cstring>
 #include <cwchar>
+#include <cwctype>
 #include <initializer_list>
 #include <string>
 
@@ -26,7 +28,7 @@
 
 namespace {
 
-const char* kActions[] = {"HwpxC2paSaveSign", "HwpxC2paVerify", "HwpxC2paToolbar"};
+const char* kActions[] = {"HwpxC2paSaveSign", "HwpxC2paVerify", "HwpxC2paToolbar", "HwpxC2paSaveAs"};
 const wchar_t* kSerializePath = L"hwpx-c2pa\\toolbar_v3";
 bool g_toolbarCreated = false;  // once per process: both load events report a new layout
 
@@ -228,8 +230,13 @@ bool ReplaceSaveEnabled() {
 // menu and shortcut calls; HAction.Run("FileSave") still runs Hangul's own save.
 void ReplaceSave(IDispatch* hwp) {
     if (!ReplaceSaveEnabled()) return;
-    bool ok = CallStrings(hwp, L"ReplaceAction", {L"FileSave", L"HwpxC2paSaveSign"});
-    Trace(L"ReplaceAction FileSave", ok ? L"ok" : L"failed");
+    // Hangul has two IDs for each (FileSave / FileSave_S, FileSaveAs / FileSaveAs_S).
+    const wchar_t* pairs[][2] = {{L"FileSave", L"HwpxC2paSaveSign"}, {L"FileSave_S", L"HwpxC2paSaveSign"},
+                                 {L"FileSaveAs", L"HwpxC2paSaveAs"}, {L"FileSaveAs_S", L"HwpxC2paSaveAs"}};
+    for (auto& p : pairs) {
+        bool ok = CallStrings(hwp, L"ReplaceAction", {p[0], p[1]});
+        Trace(p[0], ok ? L"replaced" : L"not replaced");
+    }
 }
 
 bool RunBuiltIn(IDispatch* hwp, const wchar_t* action) {
@@ -273,56 +280,129 @@ void SwapInRecordedCopy(IDispatch* hwp, IDispatch* doc, const std::wstring& path
                        MB_ICONWARNING);
 }
 
-int SaveAndSign(IDispatch* hwp) {
+// A copy of the last recorded version of each document, kept outside the document
+// folder. If a save bypasses the add-in (Hangul then drops the record), the next
+// recorded save still chains to this copy instead of starting a new history.
+std::wstring StashPath(const std::wstring& docPath) {
+    wchar_t dir[MAX_PATH];
+    DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", dir, MAX_PATH);
+    if (n == 0 || n >= MAX_PATH) return L"";
+    std::wstring folder = std::wstring(dir) + L"\\hwpx-c2pa\\parents";
+    CreateDirectoryW(folder.c_str(), nullptr);
+    unsigned long long h = 1469598103934665603ULL;  // FNV-1a over the lower-cased path
+    for (wchar_t c : docPath) {
+        h ^= (unsigned long long)towlower(c);
+        h *= 1099511628211ULL;
+    }
+    wchar_t name[32];
+    swprintf(name, 32, L"%016llx.hwpx", h);
+    return folder + L"\\" + name;
+}
+
+bool HasIntactRecord(const std::wstring& file) { return RunCli(L"verify " + Quote(file), nullptr) == 0; }
+
+std::wstring TempHwpx(const wchar_t* prefix) {
+    wchar_t dir[MAX_PATH], tmp[MAX_PATH];
+    GetTempPathW(MAX_PATH, dir);
+    if (!GetTempFileNameW(dir, prefix, 0, tmp)) return L"";
+    return tmp;  // an empty file with a .tmp name; the content decides, not the extension
+}
+
+FILETIME WriteTime(const std::wstring& file) {
+    WIN32_FILE_ATTRIBUTE_DATA d = {};
+    GetFileAttributesExW(file.c_str(), GetFileExInfoStandard, &d);
+    return d.ftLastWriteTime;
+}
+
+// Save, then record the saved version in the document's Content Credentials.
+//
+// What the first tests with Hangul 2024 showed, and what this follows:
+//  * Hangul keeps the file of an open document locked, also after SaveAs(path, "lock:false").
+//  * SaveAs to ANOTHER path with "lock:false" writes a copy, leaves the document bound to
+//    its own path and releases the lock on it.
+// So the document is written to a temporary copy, and the recorded result is put in
+// place of the document file, which is free at that moment.
+int SaveAndSign(IDispatch* hwp, bool saveAs) {
     disp::Ptr doc = ActiveDocument(hwp);
     if (!doc) return 0;
-
-    // Keep the version on disk before the save; it becomes the parent if it is intact.
     std::wstring before = disp::GetString(doc.get(), L"FullName");
+
+    // The previous version: the file on disk if its record is intact, else the stash.
     std::wstring parentCopy;
     if (IsHwpx(before) && GetFileAttributesW(before.c_str()) != INVALID_FILE_ATTRIBUTES) {
-        wchar_t tmpDir[MAX_PATH], tmp[MAX_PATH];
-        GetTempPathW(MAX_PATH, tmpDir);
-        if (GetTempFileNameW(tmpDir, L"c2p", 0, tmp) && CopyFileW(before.c_str(), tmp, FALSE)) {
-            if (RunCli(L"verify " + Quote(tmp), nullptr) == 0) parentCopy = tmp;
-            else DeleteFileW(tmp);
+        std::wstring tmp = TempHwpx(L"c2p");
+        if (!tmp.empty() && CopyFileW(before.c_str(), tmp.c_str(), FALSE) && HasIntactRecord(tmp)) {
+            parentCopy = tmp;
+        } else {
+            std::wstring stash = StashPath(before);
+            if (!tmp.empty() && !stash.empty() && CopyFileW(stash.c_str(), tmp.c_str(), FALSE) &&
+                HasIntactRecord(tmp)) {
+                parentCopy = tmp;
+                Trace(L"parent", L"from stash");
+            } else if (!tmp.empty()) {
+                DeleteFileW(tmp.c_str());
+            }
         }
     }
 
-    // Save without keeping the file locked ("lock:false"), so the record can go into
-    // the very file the user has open. A document without a name, or in another
-    // format, goes through Hangul's own save first (it asks for a name).
-    bool saved;
-    if (IsHwpx(before)) {
-        saved = CallStrings(hwp, L"SaveAs", {before.c_str(), L"HWPX", L"lock:false"});
-        Trace(L"SaveAs lock:false", saved ? L"ok" : L"failed");
-        if (!saved) saved = RunBuiltIn(hwp, L"FileSave");
-    } else {
-        saved = RunBuiltIn(hwp, L"FileSave");
-        Trace(L"built-in FileSave", saved ? L"ok" : L"failed");
-    }
-    doc = ActiveDocument(hwp);
-    std::wstring path = doc ? disp::GetString(doc.get(), L"FullName") : L"";
-    int result = 0;
-    if (!IsHwpx(path)) {
-        result = saved ? 1 : 0;  // not an HWPX document: saved as usual, nothing to record
-    } else {
-        if (!IsHwpx(before)) {  // first save of a new document: write once more without the lock
-            bool again = CallStrings(hwp, L"SaveAs", {path.c_str(), L"HWPX", L"lock:false"});
-            Trace(L"SaveAs lock:false (new document)", again ? L"ok" : L"failed");
+    // Documents without a name or in another format, and "save as", go through Hangul's
+    // own dialogs first. Run() is not redirected by ReplaceAction, so this does not loop.
+    if (saveAs || !IsHwpx(before)) {
+        FILETIME t0 = WriteTime(before);
+        const wchar_t* own = saveAs ? L"FileSaveAs_S" : L"FileSave_S";
+        bool ran = RunBuiltIn(hwp, own) || RunBuiltIn(hwp, saveAs ? L"FileSaveAs" : L"FileSave");
+        Trace(saveAs ? L"built-in save as" : L"built-in save", ran ? L"ok" : L"failed");
+        doc = ActiveDocument(hwp);
+        std::wstring now = doc ? disp::GetString(doc.get(), L"FullName") : L"";
+        FILETIME t1 = WriteTime(now);
+        bool written = _wcsicmp(now.c_str(), before.c_str()) != 0 || CompareFileTime(&t0, &t1) != 0;
+        if (!ran || !written || !IsHwpx(now)) {  // cancelled, failed, or not an HWPX document
+            if (!parentCopy.empty()) DeleteFileW(parentCopy.c_str());
+            return ran ? 1 : 0;
         }
-        std::wstring args = L"sign " + Quote(path);
+        before = now;
+    }
+    const std::wstring path = before;
+
+    int result = 0;
+    std::wstring work = TempHwpx(L"c2w");
+    bool saved = !work.empty() && CallStrings(hwp, L"SaveAs", {work.c_str(), L"HWPX", L"lock:false"});
+    Trace(L"SaveAs temporary copy", saved ? L"ok" : L"failed");
+    doc = ActiveDocument(hwp);
+    std::wstring bound = doc ? disp::GetString(doc.get(), L"FullName") : L"";
+    Trace(L"document bound to", bound.c_str());
+    if (!saved) {
+        Notify(L"문서를 저장하지 못했습니다. / The document could not be saved.", MB_ICONERROR);
+    } else {
+        std::wstring title = path.substr(path.find_last_of(L"\\/") + 1);
+        std::wstring args = L"sign " + Quote(work) + L" -o " + Quote(path) + L" --title " + Quote(title);
         if (!parentCopy.empty()) args += L" --parent " + Quote(parentCopy);
         std::wstring out;
         int code = RunCli(args, &out);
         Trace(L"sign exit", std::to_wstring(code).c_str());
-        if (code == -1) Notify(kCliMissing, MB_ICONERROR);
-        else if (code != 0) Notify(L"C2PA 기록 실패 / recording failed\n\n" + out, MB_ICONERROR);
-        else if (out.find(L"locked") != std::wstring::npos)
-            // Hangul still holds the file; the tool wrote <name>.c2pa.hwpx instead.
+        if (code == -1) {
+            Notify(kCliMissing, MB_ICONERROR);
+        } else if (code != 0) {
+            Notify(L"C2PA 기록 실패 / recording failed\n\n" + out, MB_ICONERROR);
+        } else if (out.find(L"locked") != std::wstring::npos) {
+            Trace(L"target still locked");
             SwapInRecordedCopy(hwp, doc.get(), path);
-        result = code == 0 ? 1 : 0;
+            result = 1;
+        } else {
+            result = 1;
+            if (_wcsicmp(bound.c_str(), path.c_str()) != 0) {
+                // Hangul re-bound the document to the temporary copy: bring it back.
+                Trace(L"re-open original");
+                if (doc) disp::CallBool(doc.get(), L"Close", false);
+                CallStrings(hwp, L"Open", {path.c_str(), L"HWPX", L"lock:false"});
+            } else if (doc) {
+                disp::PutLong(doc.get(), L"Modified", 0);  // the file on disk is this version
+            }
+            std::wstring stash = StashPath(path);
+            if (!stash.empty()) CopyFileW(path.c_str(), stash.c_str(), FALSE);
+        }
     }
+    if (!work.empty()) DeleteFileW(work.c_str());
     if (!parentCopy.empty()) DeleteFileW(parentCopy.c_str());
     return result;
 }
@@ -343,6 +423,10 @@ int Verify(IDispatch* hwp) {
     if (code == -1) {
         Notify(kCliMissing, MB_ICONERROR);
         return 0;
+    }
+    if (code == 0) {  // remember this recorded version as a possible previous version
+        std::wstring stash = StashPath(path);
+        if (!stash.empty()) CopyFileW(path.c_str(), stash.c_str(), FALSE);
     }
     if (code > 2) Notify(L"출처를 확인하지 못했습니다 / could not read the provenance\n\n" + out, MB_ICONERROR);
     return 1;
@@ -397,7 +481,8 @@ public:
     int DoAction(LPCSTR action, LPDISPATCH hwp) override {
         Trace(L"DoAction", action ? std::wstring(action, action + strlen(action)).c_str() : L"(null)");
         if (!action || !hwp) return 0;
-        if (strcmp(action, kActions[0]) == 0) return SaveAndSign(hwp);
+        if (strcmp(action, kActions[0]) == 0) return SaveAndSign(hwp, false);
+        if (strcmp(action, kActions[3]) == 0) return SaveAndSign(hwp, true);
         if (strcmp(action, kActions[1]) == 0) return Verify(hwp);
         if (strcmp(action, kActions[2]) == 0) return InstallToolbar(hwp);
         // Load events sent by Hangul: put the toolbar in place (once per layout name).

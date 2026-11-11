@@ -328,7 +328,7 @@ def write_atomically(path: Path, data: bytes) -> None:
 def sign_file(path: str | os.PathLike, signer: c2pa.Signer, output: str | os.PathLike | None = None,
               *, parent: str | os.PathLike | None = None, components: bool = True,
               extra: dict | None = None, locked_fallback: bool = True,
-              note: str | None = None) -> Path:
+              note: str | None = None, title: str | None = None) -> Path:
     """Sign a file in place (default) or into ``output``.
 
     If the file is locked (Hangul on Windows keeps saved files locked), the signed
@@ -337,15 +337,15 @@ def sign_file(path: str | os.PathLike, signer: c2pa.Signer, output: str | os.Pat
     src = Path(path)
     data = src.read_bytes()
     parent_bytes = Path(parent).read_bytes() if parent else None
-    signed = sign(data, signer, title=src.name, parent=parent_bytes,
+    target = Path(output) if output else src
+    signed = sign(data, signer, title=title or target.name, parent=parent_bytes,
                   parent_title=Path(parent).name if parent else None,
                   components=components, extra=extra, note=note)
-    target = Path(output) if output else src
     try:
         write_atomically(target, signed)
     except PermissionError:
         if not locked_fallback:
             raise
-        target = src.with_name(src.stem + ".c2pa" + src.suffix)
+        target = target.with_name(target.stem + ".c2pa" + target.suffix)
         write_atomically(target, signed)
     return target
