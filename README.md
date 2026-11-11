@@ -63,7 +63,7 @@ Tested with Hangul 2024 (13.0.0.4226, 32-bit) on Windows 11. Needs this reposito
 powershell -ExecutionPolicy Bypass -File addon\windows\install.ps1 -Dll path\to\HwpxC2paAddon.dll
 ```
 
-The script installs Python 3.12 (only if missing) and the engine in a private environment, fetches the C2PA library, creates test certificates and settings, picks the 32-bit or 64-bit add-in DLL to match `Hwp.exe`, registers it for the current user (`HKCU\Software\Hnc\HwpUserAction\Modules`), copies the samples to `Documents\hwpx-c2pa-samples` and puts a shortcut **Hangul C2PA** on the desktop. The DLL is built by CI (artifacts `HwpxC2paAddon-Win32` and `HwpxC2paAddon-x64` of the `test` workflow); without `-Dll` the script takes it from the latest release.
+The script installs Python 3.12 (only if missing) and the engine in a private environment, fetches the C2PA library, creates test certificates and settings, picks the 32-bit or 64-bit add-in DLL to match `Hwp.exe`, registers it for the current user (`HKCU\Software\Hnc\HwpUserAction\Modules`), copies the samples to `Documents\hwpx-c2pa-samples` and puts a shortcut **Hangul C2PA** on the desktop. The DLL is built by CI (artifacts `HwpxC2paAddon-Win32` and `HwpxC2paAddon-x64` of the `test` workflow); without `-Dll` the script takes it from the v0.1.0 release.
 
 **Start Hangul with the "Hangul C2PA" shortcut** (or `hwpx-c2pa hangul [file]`). Hangul loads this kind of add-in when a program asks it to through HWP Automation, which is what the shortcut does. In the test, after that first start, the buttons were also present in a Hangul started in the usual way; whether saving is recorded there as well has not been confirmed, so the shortcut is the supported way.
 

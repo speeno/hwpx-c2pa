@@ -11,7 +11,7 @@
 # Copyright (c) 2026 Dongsun Nam (speeno). MIT License.
 param([string]$Dll, [switch]$NoTestCerts)
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-$release = "https://github.com/speeno/hwpx-c2pa/releases/latest/download"
+$release = "https://github.com/speeno/hwpx-c2pa/releases/download/v0.1.0"
 $base = Join-Path $env:LOCALAPPDATA "hwpx-c2pa"
 New-Item -ItemType Directory -Force -Path $base | Out-Null
 $log = Join-Path $base "setup-log.txt"

@@ -63,7 +63,7 @@ Windows 11의 한글 2024(13.0.0.4226, 32비트)에서 시험했다. 이 저장�
 powershell -ExecutionPolicy Bypass -File addon\windows\install.ps1 -Dll 경로\HwpxC2paAddon.dll
 ```
 
-스크립트가 하는 일: Python 3.12 설치(없을 때만), 전용 환경에 엔진 설치, C2PA 라이브러리 받기, 시험용 인증서와 설정 만들기, `Hwp.exe`가 32비트인지 64비트인지 확인해 맞는 애드온 DLL 선택, 현재 사용자에게 등록(`HKCU\Software\Hnc\HwpUserAction\Modules`), 샘플을 `문서\hwpx-c2pa-samples`에 복사, 바탕 화면에 **Hangul C2PA** 바로 가기 만들기. DLL은 CI가 빌드한다(`test` 워크플로의 `HwpxC2paAddon-Win32`, `HwpxC2paAddon-x64` 아티팩트). `-Dll`을 주지 않으면 최신 릴리스에서 받는다.
+스크립트가 하는 일: Python 3.12 설치(없을 때만), 전용 환경에 엔진 설치, C2PA 라이브러리 받기, 시험용 인증서와 설정 만들기, `Hwp.exe`가 32비트인지 64비트인지 확인해 맞는 애드온 DLL 선택, 현재 사용자에게 등록(`HKCU\Software\Hnc\HwpUserAction\Modules`), 샘플을 `문서\hwpx-c2pa-samples`에 복사, 바탕 화면에 **Hangul C2PA** 바로 가기 만들기. DLL은 CI가 빌드한다(`test` 워크플로의 `HwpxC2paAddon-Win32`, `HwpxC2paAddon-x64` 아티팩트). `-Dll`을 주지 않으면 v0.1.0 릴리스에서 받는다.
 
 **한글은 "Hangul C2PA" 바로 가기로 시작한다**(또는 `hwpx-c2pa hangul [파일]`). 한글은 이런 종류의 애드온을 오토메이션으로 요청받을 때 불러오며, 바로 가기가 그 일을 한다. 시험에서는 그렇게 한 번 시작한 뒤로 평소처럼 시작한 한글에도 버튼이 있었다. 그 상태에서 저장도 기록되는지는 확인하지 못했으므로, 바로 가기로 시작하는 것을 기준으로 한다.
 
