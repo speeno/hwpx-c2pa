@@ -1,4 +1,4 @@
-"""Command line: hwpx-c2pa {sign, verify, view, report, check, watch, info, fetch-lib, dev-certs}.
+"""Command line: hwpx-c2pa {sign, verify, history, view, report, check, watch, info, fetch-lib, dev-certs}.
 
 Signer settings come from the options, else from the environment
 (HWPX_C2PA_CERT, HWPX_C2PA_KEY, HWPX_C2PA_ALG, HWPX_C2PA_TSA, HWPX_C2PA_TRUST),
@@ -50,7 +50,7 @@ def cmd_sign(args) -> int:
     from .engine import sign_file
     extra = json.loads(Path(args.manifest).read_text(encoding="utf-8")) if args.manifest else None
     out = sign_file(args.input, _signer(args), args.output, parent=args.parent,
-                    components=not args.no_components, extra=extra)
+                    components=not args.no_components, extra=extra, note=args.note)
     note = "" if out == Path(args.output or args.input) else " (file was locked; wrote a copy)"
     _emit({"signed": str(out), "locked_copy": bool(note)}, args.json, [f"signed: {out}{note}"])
     return 0
@@ -69,6 +69,29 @@ def cmd_verify(args) -> int:
     if not r.has_manifest:
         return 2
     return 0 if r.integrity_ok else 1
+
+
+def cmd_history(args) -> int:
+    """Origin and edit history only, oldest version first."""
+    from .engine import verify
+    r = verify(Path(args.input).read_bytes(), trust=_setting(args, "trust", "HWPX_C2PA_TRUST"))
+    if args.json:
+        print(json.dumps(r.history, ensure_ascii=False, indent=2))
+    else:
+        for step in reversed(r.history):
+            claimed = "" if step.get("time_source") == "timestamp" else " (claimed)"
+            print(f"v{step['version']}  {step.get('time') or '-'}{claimed}  {step.get('recorded_by') or '-'}"
+                  f"  [{step.get('title')}]")
+            for a in step["actions"]:
+                extra = " — ".join(x for x in (a.get("tool"), a.get("description")) if x)
+                print(f"    {a['action']}" + (f": {extra}" if extra else ""))
+            for c in step["components"]:
+                print(f"    component {c['title']}: "
+                      + (f"own credentials by {c.get('recorded_by')}" if c["has_credentials"]
+                         else "no credentials"))
+        if not r.history:
+            print("no Content Credentials")
+    return _exit_code(r)
 
 
 def _exit_code(r) -> int:
@@ -176,9 +199,12 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--version", action="version", version=f"hwpx-c2pa {__version__}")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("sign", help="embed Content Credentials (in place unless -o)")
+    s = sub.add_parser("sign", aliases=["record"],
+                       help="record this version: embed signed Content Credentials "
+                            "(in place unless -o)")
+    s.add_argument("--note", help="what was done in this version, in your words")
     s.add_argument("input"), s.add_argument("-o", "--output")
-    s.add_argument("--parent", help="previous signed version, recorded as parentOf")
+    s.add_argument("--parent", help="previous recorded version (parentOf): keeps the history")
     s.add_argument("--no-components", action="store_true",
                    help="do not link BinData parts that carry their own credentials")
     s.add_argument("--manifest", help="JSON with extra assertions / manifest fields")
@@ -190,6 +216,10 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("input"), v.add_argument("--trust", help="PEM trust anchors")
     v.add_argument("--json", action="store_true")
     v.set_defaults(func=cmd_verify)
+
+    h = sub.add_parser("history", help="origin and edit history, version by version")
+    h.add_argument("input"), h.add_argument("--trust"), h.add_argument("--json", action="store_true")
+    h.set_defaults(func=cmd_history)
 
     vw = sub.add_parser("view", help="verification window: open the result in the browser")
     vw.add_argument("input"), vw.add_argument("--trust")

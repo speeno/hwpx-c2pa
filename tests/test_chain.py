@@ -50,3 +50,29 @@ def test_watcher_resigns_after_save(tmp_path, signed_hwpx, signer):
     for _ in range(2):  # nothing changed: no second signature
         scan_once(tmp_path, signer, cache, state, log=logs.append)
     assert len(logs) == before
+
+
+def test_history_records_tool_and_changes(unsigned_hwpx, signer):
+    package = unsigned_hwpx
+    """Each version states the editor named in the package and what changed since the parent."""
+    import io, zipfile
+    from hwpx_c2pa import engine
+    v1 = engine.sign(package, signer, title="doc.hwpx")
+    src = zipfile.ZipFile(io.BytesIO(package))
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as out:
+        for info in src.infolist():
+            data = src.read(info)
+            if info.filename.startswith("Contents/section"):
+                data = data.replace(b"reference text", b"edited text", 1)
+            out.writestr(info, data, zipfile.ZIP_STORED if info.filename == "mimetype" else None)
+    v2 = engine.sign(buf.getvalue(), signer, title="doc.hwpx", parent=v1, note="second draft")
+    r = engine.verify(v2)
+    assert r.integrity_ok and [s["version"] for s in r.history] == [2, 1]
+    newest, oldest = r.history
+    assert [a["action"] for a in oldest["actions"]] == ["c2pa.created"]
+    edited = newest["actions"][-1]
+    assert edited["action"] == "c2pa.edited" and "second draft" in edited["description"]
+    assert newest["time"] and newest["time_source"] == "claimed"
+    assert newest["changes"]["parts"]["changed"] == ["Contents/section0.xml"]
+    assert newest["changes"]["text"]["paragraphs_modified"] == 1

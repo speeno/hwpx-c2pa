@@ -7,8 +7,9 @@ Output (per language, in samples/ko and samples/en):
   1-unsigned.hwpx   sample document, no credentials (picture has its own)
   2-signed.hwpx     signed
   4-tampered.hwpx   2-signed with one word changed afterwards (must fail)
-3-saved-in-hangul-resigned.hwpx is made by hand: open 2-signed in Hangul, edit,
-save, then `hwpx-c2pa sign <file> --parent 2-signed.hwpx`.
+  3b-saved-in-hangul-resigned.hwpx   if 3a-saved-in-hangul.hwpx is present (2-signed
+                    opened, edited and saved in Hangul by hand): 3a recorded as
+                    version 2, with 2-signed as its previous version
 
 The signing certificates are throw-away test certificates. Only the root
 certificate (test-root-ca.pem) is kept, so that anyone can validate the samples.
@@ -73,6 +74,10 @@ TEXT = {
 }
 
 
+NOTES = {"ko": ("초안 작성", "한글에서 열어 고친 뒤 저장"),
+         "en": ("First draft", "Opened in Hangul, edited and saved")}
+
+
 def make_png(w: int = 480, h: int = 270) -> bytes:
     """A generated picture (colour gradient with a grid); no third-party content."""
     rows = []
@@ -112,7 +117,36 @@ def build_document(lang: str, picture: bytes) -> bytes:
     doc.add_paragraph(t["caption"])
     for row in t["table"]:
         doc.add_paragraph(" : ".join(row))
-    return doc.to_bytes()
+    return declare_generator(doc.to_bytes())
+
+
+def declare_generator(package: bytes) -> bytes:
+    """Name the real generator in version.xml (the python-hwpx skeleton names Hangul)."""
+    import re
+    from importlib.metadata import version
+    src = zipfile.ZipFile(io.BytesIO(package))
+    dst = io.BytesIO()
+    with zipfile.ZipFile(dst, "w") as out:
+        for info in src.infolist():
+            data = src.read(info)
+            if info.filename == "version.xml":
+                text = re.sub(r'application="[^"]*"', 'application="python-hwpx"', data.decode())
+                data = re.sub(r'appVersion="[^"]*"', f'appVersion="{version("python-hwpx")}"', text).encode()
+            zi = zipfile.ZipInfo(info.filename, date_time=info.date_time)
+            zi.compress_type, zi.external_attr = info.compress_type, info.external_attr
+            out.writestr(zi, data)
+    return dst.getvalue()
+
+
+def existing_picture() -> bytes | None:
+    """The picture inside an existing 3a file, so that a rebuilt set still matches it."""
+    for lang in ("ko", "en"):
+        saved = HERE / lang / "3a-saved-in-hangul.hwpx"
+        if saved.exists():
+            parts = engine.bindata_parts(saved.read_bytes())
+            if parts:
+                return parts[0][1]
+    return None
 
 
 def tamper(signed: bytes, old: str, new: str) -> bytes:
@@ -140,16 +174,23 @@ def main() -> int:
         devcerts.create(certs_dir, common_name="hwpx-c2pa sample signer (TEST)")
     (HERE / "test-root-ca.pem").write_bytes((certs_dir / "root-ca.pem").read_bytes())
     signer = engine.load_signer(certs_dir / "signer-chain.pem", certs_dir / "signer.key")
-    picture = sign_picture(make_png(), signer)
+    picture = existing_picture() or sign_picture(make_png(), signer)
     for lang in ("ko", "en"):
         out = HERE / lang
         out.mkdir(exist_ok=True)
         unsigned = build_document(lang, picture)
-        signed = engine.sign(unsigned, signer, title=f"sample-{lang}.hwpx")
+        signed = engine.sign(unsigned, signer, title=f"sample-{lang}.hwpx", note=NOTES[lang][0])
         (out / "1-unsigned.hwpx").write_bytes(unsigned)
         (out / "2-signed.hwpx").write_bytes(signed)
         (out / "4-tampered.hwpx").write_bytes(tamper(signed, *TEXT[lang]["tamper"]))
-        for name in ("1-unsigned", "2-signed", "4-tampered"):
+        names = ["1-unsigned", "2-signed", "4-tampered"]
+        saved = out / "3a-saved-in-hangul.hwpx"
+        if saved.exists():
+            (out / "3b-saved-in-hangul-resigned.hwpx").write_bytes(engine.sign(
+                saved.read_bytes(), signer, title=f"sample-{lang}.hwpx", parent=signed,
+                parent_title=f"sample-{lang}.hwpx (v1)", note=NOTES[lang][1]))
+            names[2:2] = ["3a-saved-in-hangul", "3b-saved-in-hangul-resigned"]
+        for name in names:
             r = engine.verify((out / f"{name}.hwpx").read_bytes(), trust=HERE / "test-root-ca.pem")
             print(f"{lang}/{name}.hwpx: {r.state or 'no credentials'}")
     return 0

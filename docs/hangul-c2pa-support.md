@@ -2,6 +2,10 @@
 
 확인 환경 / Checked with: Hancom Office HWP 12.30.0 (build 6544, macOS), C2PA Technical Specification 2.5, c2pa-rs 0.90.23 and 0.91.11, KS X 6101:2024, Hancom public documents (HWP Automation manual 2504, Addon Action guide, hwpx-owpml-model source). Windows 한글은 시험하지 못했다 / Hangul for Windows was not tested.
 
+C2PA에서 중요한 것은 서명 여부가 아니라 **출처와 단계별 수정 이력**이다. 아래 문제점과 개선점은 "한글 문서가 자신의 이력을 끊기지 않게, 편집 프로그램의 증언으로 들고 다닐 수 있는가"를 기준으로 정리했다. 구조 설명은 [how-it-works.md](how-it-works.md).
+
+What matters in C2PA is not whether a file is signed but its **provenance and step-by-step edit history**. The problems and improvements below are judged by one question: can a Hangul document carry its own history without gaps, as testimony of the editing program? For the structure see [how-it-works.md](how-it-works.md).
+
 ---
 
 ## 한국어
@@ -21,6 +25,9 @@
 | P9 | 외부에서 고친 HWPX의 손상·변조 경고 | 한컴 포럼에 수동 편집한 HWPX가 경고로 막힌 사례가 있다. 이 도구의 서명본은 Mac에서 경고 없이 열렸다. Windows는 확인하지 못했다 | 서명본이 열리지 않을 위험 |
 | P10 | 애드인 인터페이스 문서가 오래됐다 | User Action 모듈 문서는 2008년판이다. 저장 이벤트가 없다. 2024의 새 애드온 방식은 가이드가 공개되지 않았다 | 제3자가 안정적으로 확장하기 어렵다 |
 | P11 | 재압축만으로 자격 증명이 깨진다 | C2PA A.6은 압축된 바이트를 해시한다 | 한글 문제는 아니다. 그러나 저장할 때마다 반드시 다시 서명해야 한다는 뜻이다 |
+| P12 | 편집 프로그램이 이력을 직접 증언하지 못한다 | 지금은 한글 밖의 도구가 저장된 결과물을 보고 기록한다. 편집 프로그램 이름은 `version.xml` 값을 옮긴 것이고, 변경 내용은 두 판을 비교한 요약이다 | C2PA의 핵심은 "무엇을 했는가"의 기록인데, 그 내용이 기록 주체의 진술에 머문다. `version.xml`은 누구나 고쳐 쓸 수 있다 |
+| P13 | 편집 중의 동작이 남지 않는다 | 붙여 넣기, 다른 문서 끼워 넣기, 그림 교체, 번역·요약 같은 AI 기능 사용, 변경 내용 추적의 수락·거부는 저장된 패키지만 보아서는 알 수 없다 | 판 사이에 "문단 3개가 바뀌었다"는 알 수 있어도 "외부 문서에서 붙여 넣었다", "AI가 썼다"는 알 수 없다 |
+| P14 | 기록되지 않은 저장이 이력에서 빠진다 | 애드온 없이 저장한 판, 다른 PC에서 저장한 판은 기록이 없다 | 다음 기록의 변경 요약에 여러 번의 편집이 한 덩어리로 들어간다. 이전 판 파일이 없으면 이력이 끊긴다 |
 
 ### 2. 개선점
 
@@ -37,6 +44,9 @@
 | I7 | 애드인 문서를 현행 판 기준으로 갱신하고 새 애드온 가이드를 공개한다 | P10 |
 | I8 | `META-INF/content_credential.c2pa`가 있는 패키지를 손상·변조로 판정하지 않는다 | P9 |
 | I9 | PDF로 내보낼 때 HWPX의 자격 증명을 재료로 넣은 PDF 매니페스트를 만든다(C2PA A.4) | 출처가 변환 뒤에도 이어진다 |
+| I10 | 한글이 기록 주체(클레임 생성기)가 된다. 저장할 때 한글이 자신의 이름과 버전으로 매니페스트를 만들고, 편집 중 실제로 한 동작을 기록한다: 다른 문서에서 가져온 내용(`c2pa.placed`와 그 문서를 재료로), 그림 삽입·교체, 형식 변환(`c2pa.converted`), AI 기능으로 만든 부분(`digitalSourceType: trainedAlgorithmicMedia` 등), 변경 내용 추적의 수락·거부 | P12, P13 |
+| I11 | 변경 내용 추적, 문서 이력 관리(버전 비교) 기능을 C2PA 판 이력과 잇는다. 판마다 매니페스트를 두고, 문서 이력의 각 판을 `parentOf`로 연결한다 | P13, P14 |
+| I12 | 열 때 출처와 판별 이력을 보여 주는 창을 둔다(누가, 언제, 무엇으로, 무엇을 했는지). 서명 유효 여부만 표시하는 것으로는 부족하다 | P4 |
 
 **나. OWPML 표준(KS X 6101 개정)**
 
@@ -82,6 +92,9 @@
 | P9 | "Damaged or tampered" warnings | The Hancom forum reports a hand-edited HWPX being blocked. Files signed by this tool opened without warning on Mac; Windows was not checked | A signed file might fail to open |
 | P10 | Add-in documentation is old | The User Action guide dates from 2008 and has no save event; the guide for the newer add-on method in 2024 is not public | Third parties cannot extend Hangul reliably |
 | P11 | Recompression alone breaks credentials | C2PA A.6 hashes the compressed bytes | Not a Hangul defect, but it means every save must be followed by a new signature |
+| P12 | The editing program cannot testify to the history itself | Today a tool outside Hangul records from the saved result. The editor name is copied from `version.xml`, and the changes are a summary from comparing two versions | The core of C2PA is the record of what was done, and that content remains a statement of the recording party. Anyone can rewrite `version.xml` |
+| P13 | Actions during editing leave no trace | Pasting, inserting another document, replacing a picture, using AI features such as translation or summarising, accepting or rejecting tracked changes cannot be seen from the saved package | One can tell that three paragraphs changed between versions, not that they were pasted from another document or written by AI |
+| P14 | Saves that are not recorded drop out of the history | A version saved without the add-on, or on another PC, has no record | The next change summary lumps several edits together; without the file of the previous version the history is cut |
 
 ### 2. Improvements
 
@@ -98,6 +111,9 @@
 | I7 | Update the add-in documentation for current versions and publish the new add-on guide | P10 |
 | I8 | Do not treat a package containing `META-INF/content_credential.c2pa` as damaged or tampered | P9 |
 | I9 | On export to PDF, create a PDF manifest (C2PA A.4) with the HWPX credentials as an ingredient | Provenance survives conversion |
+| I10 | Hangul becomes the recording party (claim generator). On save it creates the manifest under its own name and version and records the actions actually performed while editing: content brought in from another document (`c2pa.placed`, with that document as an ingredient), pictures inserted or replaced, format conversion (`c2pa.converted`), parts made with AI features (`digitalSourceType: trainedAlgorithmicMedia` and the like), tracked changes accepted or rejected | P12, P13 |
+| I11 | Connect track changes and document history (version comparison) with the C2PA version chain: one manifest per version, each version of the document history linked as `parentOf` | P13, P14 |
+| I12 | On open, offer a window that shows the origin and the history per version (who, when, with what, what was done). Showing only whether a signature is valid is not enough | P4 |
 
 **b. OWPML standard (revision of KS X 6101)**
 

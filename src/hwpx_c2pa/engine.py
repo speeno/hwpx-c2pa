@@ -12,6 +12,7 @@ carry C2PA update manifests).
 from __future__ import annotations
 
 import base64
+import datetime as dt
 import io
 import json
 import os
@@ -21,6 +22,8 @@ from pathlib import Path
 from . import __version__
 from ._lib import c2pa, ensure_supported
 from .package import OWPML_MIMETYPE, bindata_parts, inspect_package
+from .provenance import (CHANGES_LABEL, describe_changes, diff_packages, editing_application,
+                         history)
 from .zipbinding import compare
 
 ZIP_FORMAT = "zip"
@@ -77,6 +80,7 @@ class VerifyResult:
     informational: list[str] = field(default_factory=list)
     failure: list[str] = field(default_factory=list)
     ingredients: list[dict] = field(default_factory=list)
+    history: list[dict] = field(default_factory=list)  # recorded versions, newest first
     manifests_in_store: int = 0
     binding: dict | None = None
     package: dict | None = None
@@ -98,27 +102,52 @@ class VerifyResult:
         return d
 
     def summary(self) -> list[str]:
-        """Short bilingual lines for a message box."""
+        """Short bilingual lines for a message box: provenance first, integrity last."""
         if not self.has_manifest:
-            return ["C2PA 자격 증명이 없습니다. / No C2PA Content Credentials."]
-        lines = [f"상태 / State: {STATE_KO.get(self.state, self.state)} / {self.state}"]
+            return ["C2PA 출처 기록(콘텐츠 자격 증명)이 없습니다. / No C2PA Content Credentials."]
+        # State first; the history only describes the document if the record still holds.
+        lines = []
+        lines.append(f"기록 상태 / Record state: {STATE_KO.get(self.state, self.state)} / {self.state}")
         if self.state == "Valid":
-            lines.append("서명과 내용은 온전하나 서명자가 신뢰 목록에 없습니다. / "
-                         "Signature and content intact; signer not on a trust list.")
-        if self.signer or self.issuer:
-            lines.append(f"서명자 / Signer: {self.signer or '-'} ({self.issuer or '-'})")
-        if self.signed_time:
-            lines.append(f"서명 시각 / Signed: {self.signed_time}")
-        if self.actions:
-            lines.append(f"동작 / Actions: {', '.join(self.actions)}")
-        for ing in self.ingredients:
-            lines.append(f"재료 / Ingredient: {ing['title']} ({ing['relationship']})")
+            lines.append("기록과 내용은 온전하나 기록자가 신뢰 목록에 없습니다. / "
+                         "Record and content intact; the recording party is not on a trust list.")
         for f in self.failure:
             if not f.startswith("signingCredential.untrusted"):
                 lines.append(f"실패 / Failure: {f}")
         if self.binding is not None and not self.binding["ok"]:
-            lines.append("독립 해시 검사 불일치 / Independent hash check: mismatch")
+            lines.append("독립 해시 검사 불일치: 기록 이후 문서가 바뀌었습니다. / "
+                         "Independent hash check: the document changed after it was recorded.")
+        if self.history:
+            if not self.integrity_ok:
+                lines.append("아래는 마지막 기록의 내용이며 지금 문서와 맞지 않습니다. / "
+                             "Below is the last record; it does not match the document as it is now.")
+            first = self.history[-1]
+            lines.append(f"출처 / Origin: {_who(first)}, {_when(first)}")
+            lines.append(f"기록된 판 / Recorded versions: {len(self.history)}")
+            for step in self.history:
+                lines.append(f"  v{step['version']}  {_when(step)}  {_who(step)}")
+                for a in step["actions"]:
+                    extra = " — ".join(x for x in (a.get("tool"), a.get("description")) if x)
+                    lines.append(f"      {a['action']}" + (f": {extra}" if extra else ""))
+                for c in step["components"]:
+                    own = (f"자체 출처 기록 / own credentials: {c.get('recorded_by') or '-'}"
+                           if c["has_credentials"] else "출처 기록 없음 / no credentials")
+                    lines.append(f"      구성요소 / component {c['title']}: {own}")
+                if step["parent_problems"]:
+                    lines.append("      이전 판 기록 문제 / problem in earlier record: "
+                                 + ", ".join(step["parent_problems"]))
         return lines
+
+
+def _when(step: dict) -> str:
+    if not step.get("time"):
+        return "-"
+    return step["time"] + ("" if step.get("time_source") == "timestamp" else " (기록자 주장 / claimed)")
+
+
+def _who(step: dict) -> str:
+    by = step.get("recorded_by") or "-"
+    return f"{by} ({step['issuer']})" if step.get("issuer") else by
 
 
 def _collection_hash(detail: dict) -> dict | None:
@@ -163,6 +192,7 @@ def verify(data: bytes, trust: str | os.PathLike | None = None,
     result.failure = [f'{x["code"]}: {x.get("explanation", "")}' for x in active.get("failure", [])]
     store = json.loads(reader.json())
     result.manifests_in_store = len(store.get("manifests", {}))
+    result.history = history(store)
     m = reader.get_active_manifest() or {}
     result.title = m.get("title")
     gen = m.get("claim_generator_info") or []
@@ -213,19 +243,38 @@ def component_ingredients(data: bytes) -> list[tuple[str, str, bytes]]:
     return found
 
 
-def build_definition(title: str, edited: bool, extra: dict | None = None) -> dict:
+def build_definition(title: str, edited: bool, extra: dict | None = None, *,
+                     application: dict | None = None, changes: dict | None = None,
+                     note: str | None = None) -> dict:
+    """Manifest definition: what was done (actions), with what, and what changed.
+
+    application: the editor named in the package (softwareAgent of the action).
+    changes: summary from provenance.diff_packages, stored as its own assertion.
+    note: free text from the person recording the version (reason for the change).
+    """
+    description = [note] if note else []
+    if changes is not None:
+        description.append(" / ".join(describe_changes(changes)))
     if edited:
         # C2PA 2.x: the first action is c2pa.opened and names the parentOf ingredient.
-        actions = [{"action": "c2pa.opened", "parameters": {"ingredientIds": [PARENT_LABEL]}},
-                   {"action": "c2pa.edited"}]
+        work = {"action": "c2pa.edited"}
+        actions = [{"action": "c2pa.opened", "parameters": {"ingredientIds": [PARENT_LABEL]}}, work]
     else:
-        actions = [{"action": "c2pa.created", "digitalSourceType": DIGITAL_CREATION}]
+        work = {"action": "c2pa.created", "digitalSourceType": DIGITAL_CREATION}
+        actions = [work]
+    work["when"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")  # recorder's clock
+    if application:
+        work["softwareAgent"] = application
+    if description:
+        work["description"] = " — ".join(description)
     definition = {
         "claim_generator_info": [{"name": "hwpx-c2pa", "version": __version__}],
         "title": title,
         "format": OWPML_MIMETYPE,
         "assertions": [{"label": "c2pa.actions", "data": {"actions": actions}}],
     }
+    if changes is not None:
+        definition["assertions"].append({"label": CHANGES_LABEL, "data": changes})
     if extra:
         definition["assertions"] += extra.get("assertions", [])
         for k, v in extra.items():
@@ -236,8 +285,12 @@ def build_definition(title: str, edited: bool, extra: dict | None = None) -> dic
 
 def sign(data: bytes, signer: c2pa.Signer, *, title: str = "document.hwpx",
          parent: bytes | None = None, parent_title: str | None = None,
-         components: bool = True, extra: dict | None = None) -> bytes:
-    """Return a signed copy of an HWPX package.
+         components: bool = True, extra: dict | None = None, note: str | None = None) -> bytes:
+    """Return a copy of an HWPX package with a signed provenance record for this version.
+
+    The record states the editing application named in the package, the previous
+    version (parentOf), what changed since then, pictures that carry their own
+    credentials (componentOf), and an optional note.
 
     parent: the previous signed version. If omitted and ``data`` itself still has
     a valid credential, ``data`` is used as the parent, so signing twice chains.
@@ -245,7 +298,10 @@ def sign(data: bytes, signer: c2pa.Signer, *, title: str = "document.hwpx",
     ensure_supported()
     if parent is None and has_valid_binding(data):
         parent = data
-    builder = c2pa.Builder(json.dumps(build_definition(title, parent is not None, extra)))
+    changes = diff_packages(parent, data) if parent is not None else None
+    builder = c2pa.Builder(json.dumps(build_definition(
+        title, parent is not None, extra, application=editing_application(data),
+        changes=changes, note=note)))
     if parent is not None:
         builder.add_ingredient({"title": parent_title or f"{title} (previous)",
                                 "relationship": "parentOf", "label": PARENT_LABEL},
@@ -267,7 +323,8 @@ def write_atomically(path: Path, data: bytes) -> None:
 
 def sign_file(path: str | os.PathLike, signer: c2pa.Signer, output: str | os.PathLike | None = None,
               *, parent: str | os.PathLike | None = None, components: bool = True,
-              extra: dict | None = None, locked_fallback: bool = True) -> Path:
+              extra: dict | None = None, locked_fallback: bool = True,
+              note: str | None = None) -> Path:
     """Sign a file in place (default) or into ``output``.
 
     If the file is locked (Hangul on Windows keeps saved files locked), the signed
@@ -278,7 +335,7 @@ def sign_file(path: str | os.PathLike, signer: c2pa.Signer, output: str | os.Pat
     parent_bytes = Path(parent).read_bytes() if parent else None
     signed = sign(data, signer, title=src.name, parent=parent_bytes,
                   parent_title=Path(parent).name if parent else None,
-                  components=components, extra=extra)
+                  components=components, extra=extra, note=note)
     target = Path(output) if output else src
     try:
         write_atomically(target, signed)

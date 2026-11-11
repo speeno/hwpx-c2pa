@@ -4,9 +4,10 @@
 // Hancom's "Addon Action" guide (2008) and the HWP Automation manual (2504).
 //
 // Actions
-//   HwpxC2paSaveSign : save the active document, then embed Content Credentials
-//                      (the version on disk before the save becomes parentOf)
-//   HwpxC2paVerify   : validate the Content Credentials of the active document
+//   HwpxC2paSaveSign : save the active document, then record it as a new version in its
+//                      Content Credentials (editor, change summary; the version on disk
+//                      before the save becomes the parentOf ingredient)
+//   HwpxC2paVerify   : show the provenance and edit history of the active document
 //   HwpxC2paToolbar  : add a toolbar with the two buttons above
 //
 // The C2PA work is done by the hwpx-c2pa command line tool (Python), started as
@@ -119,7 +120,7 @@ int SaveAndSign(IDispatch* hwp) {
     std::wstring path = disp::GetString(doc.get(), L"FullName");
     int result = 0;
     if (!IsHwpx(path)) {
-        Notify(L"HWPX 형식으로 저장된 문서만 서명합니다.\nOnly documents saved as HWPX are signed.",
+        Notify(L"HWPX 형식으로 저장된 문서만 기록합니다.\nOnly documents saved as HWPX are recorded.",
                MB_ICONWARNING);
     } else {
         std::wstring args = L"sign " + Quote(path);
@@ -127,11 +128,11 @@ int SaveAndSign(IDispatch* hwp) {
         std::wstring out;
         int code = RunCli(args, &out);
         if (code == -1) Notify(kCliMissing, MB_ICONERROR);
-        else if (code != 0) Notify(L"C2PA 서명 실패 / signing failed\n\n" + out, MB_ICONERROR);
+        else if (code != 0) Notify(L"C2PA 기록 실패 / recording failed\n\n" + out, MB_ICONERROR);
         else if (out.find(L"locked") != std::wstring::npos)
             // Hangul keeps the saved file locked; the tool wrote <name>.c2pa.hwpx instead.
-            Notify(L"문서가 잠겨 있어 서명본을 별도 파일로 저장했습니다.\n"
-                   L"The document is locked; the signed copy was written separately.\n\n" + out);
+            Notify(L"문서가 잠겨 있어 기록이 든 사본을 별도 파일로 저장했습니다.\n"
+                   L"The document is locked; the copy with the record was written separately.\n\n" + out);
         result = code == 0 ? 1 : 0;
     }
     if (!parentCopy.empty()) DeleteFileW(parentCopy.c_str());
@@ -169,9 +170,9 @@ int InstallToolbar(IDispatch* hwp) {
     if (!bar) return 0;
     const std::wstring saveId = L"HwpxC2paSaveSign", verifyId = L"HwpxC2paVerify";
     disp::Ptr b1 = disp::CallObject(layout.get(), L"CreateToolbarButton",
-                                    L"C2PA 서명 저장 (Save && Sign)", &saveId, 0);
+                                    L"C2PA 기록 저장 (Save && Record)", &saveId, 0);
     disp::Ptr b2 = disp::CallObject(layout.get(), L"CreateToolbarButton",
-                                    L"C2PA 검증 (Verify)", &verifyId, 0);
+                                    L"C2PA 출처 확인 (Provenance)", &verifyId, 0);
     for (disp::Ptr* b : {&b1, &b2}) {
         if (!*b) continue;
         disp::CallLongLong(b->get(), L"ModifyStyle", 2, 1);  // text only: no image supplied
