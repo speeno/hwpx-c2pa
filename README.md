@@ -6,6 +6,14 @@
 
 Author: Dongsun Nam (speeno) · License: MIT · Status: alpha (0.1.0)
 
+## About this project
+
+- **Purpose.** C2PA is mostly known for images, video and other multimedia. This project was developed to confirm that C2PA can also be applied to another kind of digitally created object, the textual document, taking OWPML (HWPX) as the format, and to see how it can be used in practice.
+- **Result.** It can. Content Credentials are embedded in and read from HWPX packages under Annex A.6 of the C2PA Technical Specification 2.5, without changing the OWPML schema, and a document carries its origin and edit history from version to version.
+- **Findings for the Hangul software.** Several points in how Hangul is implemented need to change before this works without an add-on; the first is that saving a document removes the credentials. See [problems and improvements](docs/hangul-c2pa-support.md) (product items I1 to I12).
+- **Findings for the OWPML standard.** Parts of the OWPML specification (KS X 6101) need revision, such as how a processor treats parts it does not know and how the credentials part is declared. See the same document (standard items S1 to S5).
+- **How to use it.** The project is delivered in two forms: an **add-on for Hangul** and a **command line (CLI) tool**.
+
 - How it works, with block diagrams: [docs/how-it-works.md](docs/how-it-works.md)
 - Worked example with screens: [docs/case-study.md](docs/case-study.md)
 - Korean and English samples: [samples/](samples/)
