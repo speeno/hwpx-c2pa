@@ -26,7 +26,8 @@
 namespace {
 
 const char* kActions[] = {"HwpxC2paSaveSign", "HwpxC2paVerify", "HwpxC2paToolbar"};
-const wchar_t* kSerializePath = L"hwpx-c2pa\\toolbar_v1";
+const wchar_t* kSerializePath = L"hwpx-c2pa\\toolbar_v2";
+bool g_toolbarCreated = false;  // once per process: both load events report a new layout
 
 std::wstring Utf8ToWide(const std::string& s) {
     if (s.empty()) return L"";
@@ -123,6 +124,42 @@ const wchar_t* kCliMissing =
     L"hwpx-c2pa 명령을 실행할 수 없습니다. 설치 후 다시 시도하십시오.\n"
     L"Cannot run the hwpx-c2pa tool. Install it (pip install hwpx-c2pa) and try again.";
 
+// The open document is locked by Hangul, so the record went into <name>.c2pa.hwpx.
+// Offer to close the document, put that file in its place and open it again, so
+// that the document the user works on is the one that carries the record.
+void SwapInRecordedCopy(IDispatch* hwp, IDispatch* doc, const std::wstring& path) {
+    std::wstring copy = path.substr(0, path.size() - 5) + L".c2pa.hwpx";
+    int answer = MessageBoxW(GetActiveWindow(),
+        L"이 판의 출처 기록을 만들었습니다. 문서 파일이 한글에 열려 있어 기록은 사본에 들어 있습니다.\n"
+        L"문서를 닫고 기록이 든 파일로 바꾼 뒤 다시 열까요?\n\n"
+        L"The provenance record for this version was created. The document file is open in "
+        L"Hangul, so the record is in a copy.\nClose the document, replace it with the recorded "
+        L"file and open it again?",
+        L"hwpx-c2pa", MB_YESNO | MB_ICONQUESTION);
+    if (answer != IDYES) {
+        Notify(L"기록이 든 사본 / Copy with the record:\n" + copy);
+        return;
+    }
+    bool closed = disp::CallBool(doc, L"Close", false);
+    Trace(L"swap: close", closed ? L"ok" : L"failed");
+    BOOL moved = FALSE;
+    for (int i = 0; i < 10 && !moved; ++i) {  // the lock is released shortly after the close
+        moved = MoveFileExW(copy.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING);
+        if (!moved) Sleep(200);
+    }
+    Trace(L"swap: replace", moved ? L"ok" : L"failed");
+    VARIANT args[3];  // Open(path, format, arg), arguments in reverse order
+    for (VARIANT& v : args) VariantInit(&v);
+    args[2].vt = VT_BSTR; args[2].bstrVal = SysAllocString(path.c_str());
+    args[1].vt = VT_BSTR; args[1].bstrVal = SysAllocString(L"HWPX");
+    args[0].vt = VT_BSTR; args[0].bstrVal = SysAllocString(L"");
+    HRESULT hr = disp::Invoke(hwp, L"Open", DISPATCH_METHOD, args, 3, nullptr);
+    for (VARIANT& v : args) VariantClear(&v);
+    Trace(L"swap: reopen", SUCCEEDED(hr) ? L"ok" : L"failed");
+    if (!moved) Notify(L"파일을 바꾸지 못했습니다. 기록이 든 사본 / Could not replace the file. Copy with the record:\n" + copy,
+                       MB_ICONWARNING);
+}
+
 int SaveAndSign(IDispatch* hwp) {
     disp::Ptr doc = ActiveDocument(hwp);
     if (!doc) return 0;
@@ -155,8 +192,7 @@ int SaveAndSign(IDispatch* hwp) {
         else if (code != 0) Notify(L"C2PA 기록 실패 / recording failed\n\n" + out, MB_ICONERROR);
         else if (out.find(L"locked") != std::wstring::npos)
             // Hangul keeps the saved file locked; the tool wrote <name>.c2pa.hwpx instead.
-            Notify(L"문서가 잠겨 있어 기록이 든 사본을 별도 파일로 저장했습니다.\n"
-                   L"The document is locked; the copy with the record was written separately.\n\n" + out);
+            SwapInRecordedCopy(hwp, doc.get(), path);
         result = code == 0 ? 1 : 0;
     }
     if (!parentCopy.empty()) DeleteFileW(parentCopy.c_str());
@@ -192,7 +228,8 @@ int InstallToolbar(IDispatch* hwp) {
     disp::CallString(layout.get(), L"ChangeSerializePath", kSerializePath);
     bool fresh = disp::GetBool(layout.get(), L"IsNewSerializePath", false);
     Trace(L"toolbar: IsNewSerializePath", fresh ? L"true" : L"false");
-    if (!fresh) return 1;  // already added
+    if (!fresh || g_toolbarCreated) return 1;  // already added
+    g_toolbarCreated = true;
     disp::Ptr bar = disp::CallObject(layout.get(), L"CreateToolbar", L"C2PA", nullptr, 0);
     Trace(L"toolbar: CreateToolbar", bar ? L"ok" : L"none");
     if (!bar) return 0;

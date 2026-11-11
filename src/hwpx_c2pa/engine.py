@@ -318,7 +318,11 @@ def sign(data: bytes, signer: c2pa.Signer, *, title: str = "document.hwpx",
 def write_atomically(path: Path, data: bytes) -> None:
     tmp = path.with_name(path.name + ".hwpx-c2pa-tmp")
     tmp.write_bytes(data)
-    os.replace(tmp, path)
+    try:
+        os.replace(tmp, path)
+    except OSError:
+        tmp.unlink(missing_ok=True)  # e.g. the target is locked by the editor
+        raise
 
 
 def sign_file(path: str | os.PathLike, signer: c2pa.Signer, output: str | os.PathLike | None = None,
