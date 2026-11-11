@@ -71,7 +71,7 @@ print(verify(signed).summary())
 |---|---|---|---|
 | `hwpx-c2pa watch`, `addon/macos/install-watch.sh` | macOS, Windows, Linux | 폴더를 감시해 저장된 `.hwpx`를 다시 서명한다. 한글 API가 필요 없다 | 시험함(한글 12.30 Mac이 저장한 파일 포함) |
 | `addon/windows/automation/hwpx_c2pa_hangul.py` | Windows, 한글 2020 이상 | 실행 중인 한글에 붙어, 열 때 검증하고 저장 직후 서명한다(한글 오토메이션 이벤트) | **시험하지 않음** |
-| `addon/windows/useraction/` (C++ DLL) | Windows | 한글 "추가 기능"(User Action 모듈). "C2PA 서명 저장", "C2PA 검증" 버튼 | **컴파일·시험하지 않음** |
+| `addon/windows/useraction/` (C++ DLL) | Windows | 한글 "추가 기능"(User Action 모듈). "C2PA 서명 저장", "C2PA 검증" 버튼 | CI에서 빌드됨. **한글에서 시험하지 않음** |
 
 - Mac용 한글에는 애드인과 오토메이션 인터페이스가 없어 폴더 감시가 유일한 방법이다.
 - 한글 오토메이션은 개인의 비상업적 사용에 한해 무료다. 상업적 사용은 한컴의 승인이 필요하다. 이 저장소의 MIT 라이선스는 이 저장소의 코드에만 적용된다.
@@ -135,7 +135,7 @@ hwpx-c2pa watch ~/Documents/Signed         # watch a folder, re-sign after each 
 |---|---|---|---|
 | `hwpx-c2pa watch`, `addon/macos/install-watch.sh` | macOS, Windows, Linux | Watches a folder and re-signs saved `.hwpx` files. Needs no Hangul API | Tested, including files saved by Hangul 12.30 for Mac |
 | `addon/windows/automation/hwpx_c2pa_hangul.py` | Windows, Hangul 2020+ | Attaches to the running Hangul, verifies on open, signs right after save (HWP Automation events) | **Not tested** |
-| `addon/windows/useraction/` (C++ DLL) | Windows | Hangul add-in (User Action Module) with "Save & Sign" and "Verify" buttons | **Not compiled, not tested** |
+| `addon/windows/useraction/` (C++ DLL) | Windows | Hangul add-in (User Action Module) with "Save & Sign" and "Verify" buttons | Builds in CI. **Not tested in Hangul** |
 
 - Hangul for Mac has no add-in or automation interface, so the folder watcher is the only route there.
 - Hancom allows HWP Automation free of charge for personal, non-commercial use only; commercial use needs Hancom's approval. The MIT licence of this repository covers this repository's code only.

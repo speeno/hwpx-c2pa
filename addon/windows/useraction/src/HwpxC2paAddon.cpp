@@ -1,6 +1,6 @@
 // hwpx-c2pa add-on for Hangul (Windows): a User Action Module.
 //
-// STATUS: experimental. NOT YET COMPILED OR TESTED. Written on macOS against
+// STATUS: experimental. Builds in CI (MSVC, Win32); NOT YET TESTED IN HANGUL. Written against
 // Hancom's "Addon Action" guide (2008) and the HWP Automation manual (2504).
 //
 // Actions
