@@ -109,7 +109,7 @@ def cmd_report(args) -> int:
     src = Path(args.input)
     r = verify(src.read_bytes(), trust=_setting(args, "trust", "HWPX_C2PA_TRUST"))
     if args.cmd == "view":
-        path = report.show(r, src.name)
+        path = report.show(r, src.name, app=args.app)
     else:
         path = report.write(r, src.name, args.output)
     print(path)
@@ -223,6 +223,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     vw = sub.add_parser("view", help="verification window: open the result in the browser")
     vw.add_argument("input"), vw.add_argument("--trust")
+    vw.add_argument("--app", action="store_true",
+                    help="show as a window of its own instead of a browser tab (Windows, Edge)")
     vw.set_defaults(func=cmd_report)
     rp = sub.add_parser("report", help="write the verification page to an HTML file")
     rp.add_argument("input"), rp.add_argument("-o", "--output", required=True)

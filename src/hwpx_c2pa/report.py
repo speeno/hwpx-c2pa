@@ -248,7 +248,30 @@ def write(result: VerifyResult, filename: str, output: str | Path | None = None)
     return path
 
 
-def show(result: VerifyResult, filename: str) -> Path:
+def _edge() -> str | None:
+    """Microsoft Edge on Windows, used to show the page as a window of its own."""
+    import os
+    for root in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles"),
+                 os.environ.get("LOCALAPPDATA")):
+        if root:
+            exe = Path(root) / "Microsoft" / "Edge" / "Application" / "msedge.exe"
+            if exe.exists():
+                return str(exe)
+    return None
+
+
+def show(result: VerifyResult, filename: str, app: bool = False) -> Path:
+    """Open the page: in the default browser, or with app=True as a separate window
+    without browser controls (Windows with Edge; elsewhere the browser is used)."""
+    import subprocess
+    import sys
     path = write(result, filename)
-    webbrowser.open(path.as_uri())
+    edge = _edge() if app and sys.platform == "win32" else None
+    if edge:
+        subprocess.Popen([edge, f"--app={path.as_uri()}", "--window-size=940,1000"],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, close_fds=True,
+                         creationflags=0x00000008 | 0x00000200)  # detached, own process group
+    else:
+        webbrowser.open(path.as_uri())
     return path

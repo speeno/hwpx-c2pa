@@ -27,7 +27,7 @@
 namespace {
 
 const char* kActions[] = {"HwpxC2paSaveSign", "HwpxC2paVerify", "HwpxC2paToolbar"};
-const wchar_t* kSerializePath = L"hwpx-c2pa\\toolbar_v2";
+const wchar_t* kSerializePath = L"hwpx-c2pa\\toolbar_v3";
 bool g_toolbarCreated = false;  // once per process: both load events report a new layout
 
 std::wstring Utf8ToWide(const std::string& s) {
@@ -59,6 +59,75 @@ void Trace(const wchar_t* what, const wchar_t* detail = L"") {
         WriteFile(h, utf8, (DWORD)m, &written, nullptr);
     }
     CloseHandle(h);
+}
+
+// Button images, drawn here so the add-in needs no image files. Hangul wants a 32-bit
+// strip of 16x16 cells, 60 cells wide (960 px), colours premultiplied by alpha.
+//   . transparent   o outline   w paper   g green (recorded)   b blue (look)   W white
+const char* kIconRecord[16] = {
+    "..oooooooo......",
+    "..owwwwwwoo.....",
+    "..owwwwwwwo.....",
+    "..owoooowwo.....",
+    "..owwwwwwwo.....",
+    "..owoooowwo.....",
+    "..owwwwwwwo.....",
+    "..owooowwggggg..",
+    "..owwwwwgggggWg.",
+    "..owwwwwggggWgg.",
+    "..owwwwwgWgWggg.",
+    "..owwwwwggWgggg.",
+    "..oooooogggggg..",
+    ".........gggg...",
+    "................",
+    "................"};
+const char* kIconProvenance[16] = {
+    "..oooooooo......",
+    "..owwwwwwoo.....",
+    "..owwwwwwwo.....",
+    "..owoooowwo.....",
+    "..owwwwwwwo.....",
+    "..owoooobbbb....",
+    "..owwwwbwwwwb...",
+    "..owoobwwwwwwb..",
+    "..owwwbwwwwwwb..",
+    "..owwwbwwwwwwb..",
+    "..owwwwbwwwwb...",
+    "..oooooobbbbb...",
+    "............bb..",
+    ".............bb.",
+    "..............b.",
+    "................"};
+HBITMAP g_buttons = nullptr;
+
+DWORD IconColour(char ch) {  // 0xAARRGGBB, opaque colours need no premultiplying
+    switch (ch) {
+        case 'o': return 0xFF3B4A5A;
+        case 'w': case 'W': return 0xFFFFFFFF;
+        case 'g': return 0xFF1A7F4B;
+        case 'b': return 0xFF1F6FEB;
+        default: return 0x00000000;
+    }
+}
+
+HBITMAP ButtonStrip() {
+    if (g_buttons) return g_buttons;
+    BITMAPINFO bi = {};
+    bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
+    bi.bmiHeader.biWidth = 16 * 60;
+    bi.bmiHeader.biHeight = -16;  // top-down
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    DWORD* px = nullptr;
+    g_buttons = CreateDIBSection(nullptr, &bi, DIB_RGB_COLORS, (void**)&px, nullptr, 0);
+    if (!g_buttons || !px) return nullptr;
+    memset(px, 0, 16 * 60 * 16 * sizeof(DWORD));
+    const char* const* icons[] = {kIconRecord, kIconProvenance};
+    for (int n = 0; n < 2; ++n)
+        for (int y = 0; y < 16; ++y)
+            for (int x = 0; x < 16; ++x) px[y * 16 * 60 + n * 16 + x] = IconColour(icons[n][y][x]);
+    return g_buttons;
 }
 
 std::wstring CliPath() {
@@ -266,14 +335,16 @@ int Verify(IDispatch* hwp) {
         Notify(L"저장된 HWPX 문서가 아닙니다.\nNot a saved HWPX document.", MB_ICONWARNING);
         return 0;
     }
+    // The provenance window: a page with origin, edit history and components, opened as
+    // its own window (see report.py). Exit codes 0 to 2 mean the page was shown.
     std::wstring out;
-    int code = RunCli(L"verify " + Quote(path), &out);
+    int code = RunCli(L"view --app " + Quote(path), &out);
+    Trace(L"view exit", std::to_wstring(code).c_str());
     if (code == -1) {
         Notify(kCliMissing, MB_ICONERROR);
         return 0;
     }
-    // 0 intact, 1 invalid, 2 no credentials, 3+ error
-    Notify(out, code == 0 ? MB_ICONINFORMATION : (code == 2 ? MB_ICONWARNING : MB_ICONERROR));
+    if (code > 2) Notify(L"출처를 확인하지 못했습니다 / could not read the provenance\n\n" + out, MB_ICONERROR);
     return 1;
 }
 
@@ -294,13 +365,13 @@ int InstallToolbar(IDispatch* hwp) {
     if (!bar) return 0;
     const std::wstring saveId = L"HwpxC2paSaveSign", verifyId = L"HwpxC2paVerify";
     disp::Ptr b1 = disp::CallObject(layout.get(), L"CreateToolbarButton",
-                                    L"C2PA 기록 저장 (Save && Record)", &saveId, 0);
+                                    L"C2PA 저장", &saveId, 0);
     disp::Ptr b2 = disp::CallObject(layout.get(), L"CreateToolbarButton",
-                                    L"C2PA 출처 확인 (Provenance)", &verifyId, 0);
+                                    L"C2PA 출처", &verifyId, 0);
     Trace(L"toolbar: buttons", (b1 && b2) ? L"ok" : L"missing");
     for (disp::Ptr* b : {&b1, &b2}) {
         if (!*b) continue;
-        disp::CallLongLong(b->get(), L"ModifyStyle", 2, 1);  // text only: no image supplied
+        disp::CallLongLong(b->get(), L"ModifyStyle", 0, 3);  // image and text
         disp::CallObjectLong(bar.get(), L"InsertToolbarButton", b->get(), -1);
     }
     return 1;
@@ -312,10 +383,12 @@ public:
         Trace(L"EnumAction", i == 0 ? L"0" : L"n");
         return (i >= 0 && i < (int)(sizeof(kActions) / sizeof(kActions[0]))) ? kActions[i] : nullptr;
     }
-    BOOL GetActionImage(LPCSTR, UINT, HBITMAP* bmp, int* index) override {
-        if (bmp) *bmp = nullptr;  // text-only buttons
-        if (index) *index = 0;
-        return FALSE;
+    BOOL GetActionImage(LPCSTR action, UINT, HBITMAP* bmp, int* index) override {
+        int n = !action ? -1 : strcmp(action, kActions[0]) == 0 ? 0 : strcmp(action, kActions[1]) == 0 ? 1 : -1;
+        HBITMAP strip = n < 0 ? nullptr : ButtonStrip();
+        if (bmp) *bmp = strip;
+        if (index) *index = n < 0 ? 0 : n;
+        return strip != nullptr;
     }
     BOOL UpdateUI(LPCSTR, LPDISPATCH, UINT* state) override {
         if (state) *state = 0;
