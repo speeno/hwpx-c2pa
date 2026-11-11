@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hwpx-c2pa"
+version = "0.1.0"
+description = "C2PA Content Credentials for HWPX (OWPML, KS X 6101) documents: sign, verify, and re-sign after every save"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Dongsun Nam (speeno)" }]
+requires-python = ">=3.10"
+dependencies = ["c2pa-python>=0.38.2,<0.40"]
+keywords = ["c2pa", "content credentials", "provenance", "hwpx", "owpml", "hwp", "hangul", "ks x 6101"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Natural Language :: Korean",
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Topic :: Office/Business :: Office Suites",
+  "Topic :: Security :: Cryptography",
+]
+
+[project.optional-dependencies]
+devcerts = ["cryptography>=42"]
+dev = ["pytest>=8", "cryptography>=42"]
+windows = ["pywin32>=306; sys_platform == 'win32'"]
+
+[project.scripts]
+hwpx-c2pa = "hwpx_c2pa.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/speeno/hwpx-c2pa"
+Issues = "https://github.com/speeno/hwpx-c2pa/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

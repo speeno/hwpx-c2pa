@@ -1,0 +1,12 @@
+__pycache__/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+.venv/
+*.pem
+*.key
+.hwpx-c2pa-cache/
+.DS_Store
+samples/.certs/
+!samples/test-root-ca.pem
