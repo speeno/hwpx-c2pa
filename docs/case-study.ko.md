@@ -103,7 +103,9 @@ Windows 11의 한글 2024(13.0.0.4226, 32비트)를 `hwpx-c2pa hangul`로 시작
 - 열려 있는 문서의 파일은 쓰기가 잠긴다. 같은 경로에 `SaveAs(path, "HWPX", "lock:false")`를 해도 풀리지 않는다. 다른 경로에 `lock:false`로 저장하면 풀리고, 문서는 원래 경로에 연결된 채로 남는다.
 - `ReplaceAction`은 `FileSave`와 `FileSave_S` 두 ID의 저장을 바꿔 준다.
 
-아직 없는 것: C2PA 버튼이 보이는 한글 창 캡처.
+애드온이 한글 창에 넣는 버튼 두 개:
+
+![한글 도구 모음의 C2PA 버튼](screenshots/win-00-toolbar.png)
 
 ## 5. 다시 만들기
 

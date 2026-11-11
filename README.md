@@ -37,7 +37,11 @@ Author: Dongsun Nam (speeno) · License: MIT · Status: alpha (0.1.0)
 
 ![No record](docs/screenshots/03-view-after-hangul-save-no-record.png)
 
-**5. In Hangul 2024 for Windows, with the add-in**: the "C2PA 출처" button opens the provenance window for the open document.
+**5. In Hangul 2024 for Windows, with the add-in**: two buttons in the Hangul window, "C2PA 저장" (save and record) and "C2PA 출처" (provenance).
+
+![C2PA buttons in the Hangul toolbar](docs/screenshots/win-00-toolbar.png)
+
+The "C2PA 출처" button opens the provenance window for the open document.
 
 ![Provenance window opened from Hangul](docs/screenshots/win-01-provenance-window.png)
 

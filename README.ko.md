@@ -37,7 +37,11 @@
 
 ![출처 기록 없음](docs/screenshots/03-view-after-hangul-save-no-record.png)
 
-**5. Windows용 한글 2024에서 애드온으로**: "C2PA 출처" 버튼을 누르면 열려 있는 문서의 출처 창이 뜬다.
+**5. Windows용 한글 2024에서 애드온으로**: 한글 창에 "C2PA 저장"(저장하고 기록)과 "C2PA 출처"(출처 보기) 버튼 두 개가 생긴다.
+
+![한글 도구 모음의 C2PA 버튼](docs/screenshots/win-00-toolbar.png)
+
+"C2PA 출처" 버튼을 누르면 열려 있는 문서의 출처 창이 뜬다.
 
 ![한글에서 연 출처 창](docs/screenshots/win-01-provenance-window.png)
 

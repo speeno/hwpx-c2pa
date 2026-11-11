@@ -103,7 +103,9 @@ What the tests showed about Hangul 2024:
 - The file of an open document is locked for writing. `SaveAs(path, "HWPX", "lock:false")` on the same path does not release it; saving to another path with `lock:false` does, and leaves the document bound to its own path.
 - `ReplaceAction` redirects Save for the IDs `FileSave` and `FileSave_S`.
 
-Not yet included: a capture of the Hangul window with the C2PA buttons.
+The two buttons the add-in puts in the Hangul window:
+
+![C2PA buttons in the Hangul toolbar](screenshots/win-00-toolbar.png)
 
 ## 5. Reproducing
 
