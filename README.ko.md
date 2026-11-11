@@ -37,28 +37,45 @@
 
 ![출처 기록 없음](docs/screenshots/03-view-after-hangul-save-no-record.png)
 
-**5. 한글(Windows) 안에서**: 한글 창에 애드온이 붙은 화면은 첫 Windows 시험에서 모으는 중이며, 여기에 추가할 예정이다.
+**5. Windows용 한글 2024에서 애드온으로**: "C2PA 출처" 버튼을 누르면 열려 있는 문서의 출처 창이 뜬다.
+
+![한글에서 연 출처 창](docs/screenshots/win-01-provenance-window.png)
+
+**6. 한글에서 Ctrl+S를 누른 뒤**: 저장이 열려 있는 그 문서에 판 2로 기록된다. 편집 프로그램(Hancom Office Hangul 13.0.0.4226)과 바뀐 내용이 함께 남는다.
+
+![한글에서 저장한 뒤 판 2개](docs/screenshots/win-02-after-save-two-versions.png)
+
+**7. 다시 고치고 일반 저장 버튼을 누른 뒤**: 판 2에 이어 판 3이 기록된다.
+
+![판 3](docs/screenshots/win-03-third-version.png)
 
 ## 한글 애드온 설치
 
 ### Windows: 한글 안의 추가 기능
 
-Windows용 한글과 이 저장소(클론 또는 ZIP)가 필요하다. 관리자 권한은 필요 없다.
+Windows 11의 한글 2024(13.0.0.4226, 32비트)에서 시험했다. 이 저장소(클론 또는 ZIP)가 필요하다. 관리자 권한은 필요 없다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File addon\windows\install.ps1 -Dll 경로\HwpxC2paAddon.dll
 ```
 
-스크립트가 하는 일: Python 3.12 설치(없을 때만), 전용 환경에 엔진 설치, C2PA 라이브러리 받기, 시험용 인증서와 설정 만들기, `Hwp.exe`가 32비트인지 64비트인지 확인해 맞는 애드온 DLL 선택, 현재 사용자에게 등록(`HKCU\Software\Hnc\HwpUserAction\Modules`), 샘플을 `문서\hwpx-c2pa-samples`에 복사. DLL은 CI가 빌드한다(`test` 워크플로의 `HwpxC2paAddon-Win32`, `HwpxC2paAddon-x64` 아티팩트). `-Dll`을 주지 않으면 최신 릴리스에서 받는다.
+스크립트가 하는 일: Python 3.12 설치(없을 때만), 전용 환경에 엔진 설치, C2PA 라이브러리 받기, 시험용 인증서와 설정 만들기, `Hwp.exe`가 32비트인지 64비트인지 확인해 맞는 애드온 DLL 선택, 현재 사용자에게 등록(`HKCU\Software\Hnc\HwpUserAction\Modules`), 샘플을 `문서\hwpx-c2pa-samples`에 복사, 바탕 화면에 **Hangul C2PA** 바로 가기 만들기. DLL은 CI가 빌드한다(`test` 워크플로의 `HwpxC2paAddon-Win32`, `HwpxC2paAddon-x64` 아티팩트). `-Dll`을 주지 않으면 최신 릴리스에서 받는다.
 
-설치 후 한글을 다시 시작한다. 애드온은 두 가지 동작을 제공한다.
+**한글은 "Hangul C2PA" 바로 가기로 시작한다**(또는 `hwpx-c2pa hangul [파일]`). 한글은 이런 종류의 애드온을 오토메이션으로 요청받을 때만 불러온다. 그래서 평소처럼 시작한 한글에는 애드온이 보이지 않는다.
 
-| 동작 | 하는 일 |
+한글 안에서 애드온이 하는 일:
+
+| 한글에서 | 일어나는 일 |
 |---|---|
-| C2PA 기록 저장 (`HwpxC2paSaveSign`) | 문서를 저장하고 새 판으로 기록한다: 편집 프로그램, 변경 요약, 이전 판 연결 |
-| C2PA 출처 확인 (`HwpxC2paVerify`) | 열려 있는 문서의 출처와 수정 이력을 보여 준다 |
+| **C2PA 출처** 버튼 | 출처 창을 연다: 출처, 판별 수정 이력, 그림의 출처, 해시 대조 |
+| **저장**(Ctrl+S, 저장 버튼, 파일 메뉴)과 **C2PA 저장** 버튼 | 저장한 뒤, 열려 있는 그 문서에 저장한 판을 기록한다: 편집 프로그램, 변경 요약, 이전 판 연결 |
+| **다른 이름으로 저장** | 한글의 대화상자를 그대로 띄운 뒤, 새 파일을 기록하고 이전 파일을 이전 판으로 잇는다 |
+| HWPX가 아닌 문서 | 평소대로 저장하고 기록하지 않는다 |
 
-상태: 설치 스크립트와 애드온은 Windows용 한글에서 첫 시험 중이다. 결과와 화면은 이어서 올린다. 제거: `addon\windows\useraction\register.ps1 -Remove`.
+- 저장은 `ReplaceAction`으로 가로챈다. 한글의 원래 저장을 그대로 두려면 `HKCU\Software\hwpx-c2pa\ReplaceSave`(DWORD)를 0으로 두고 버튼을 쓴다.
+- 한글은 열려 있는 문서의 파일을 잠근다. 애드온은 먼저 임시 사본으로 저장해 잠금을 풀고, 기록이 든 파일을 문서 자리에 넣는다.
+- 문서마다 마지막으로 기록한 판을 `%LOCALAPPDATA%\hwpx-c2pa\parents`에 보관한다. 애드온을 거치지 않은 저장으로 한글이 기록을 지워도, 다음 기록 때 그 보관본에 이어 붙인다.
+- 아직 시험하지 않은 것: 이 저장소의 `install.ps1` 전체(각 단계는 시험기에서 이전 형태로 실행했다), 64비트 한글, 한글 2020과 2022, "다른 이름으로 저장". 제거: `addon\windows\useraction\register.ps1 -Remove`.
 
 ### macOS 또는 애드온 없이: 폴더 감시
 
@@ -140,11 +157,11 @@ for step in verify(v2).history:      # 최신 판부터
 |---|---|---|---|
 | `hwpx-c2pa watch`, `addon/macos/install-watch.sh` | macOS, Windows, Linux | 폴더를 감시해 저장된 `.hwpx`를 새 판으로 기록한다(이전 판 연결, 변경 요약). 한글 API가 필요 없다 | 시험함(한글 12.30 Mac이 저장한 파일 포함) |
 | `addon/windows/automation/hwpx_c2pa_hangul.py` | Windows, 한글 2020 이상 | 실행 중인 한글에 붙어, 열 때 출처를 확인하고 저장 직후 새 판을 기록한다(한글 오토메이션 이벤트) | **시험하지 않음** |
-| `addon/windows/useraction/` (C++ DLL) | Windows | 한글 "추가 기능"(User Action 모듈). "C2PA 기록 저장", "C2PA 출처 확인" 버튼 | CI에서 빌드됨. **한글에서 시험하지 않음** |
+| `addon/windows/useraction/` (C++ DLL) + `hwpx-c2pa hangul` | Windows | 한글 "추가 기능"(User Action 모듈): 버튼, 출처 창, 저장할 때마다 열려 있는 문서에 기록 | 한글 2024(13.0.0.4226, 32비트)에서 시험함: Ctrl+S와 저장 버튼으로 판 1~3 기록 |
 
 - Mac용 한글에는 애드인과 오토메이션 인터페이스가 없어 폴더 감시가 유일한 방법이다.
 - 한글 오토메이션은 개인의 비상업적 사용에 한해 무료다. 상업적 사용은 한컴의 승인이 필요하다. 이 저장소의 MIT 라이선스는 이 저장소의 코드에만 적용된다.
-- Windows 애드온은 한컴 공개 문서(한글 오토메이션 매뉴얼, Addon Action 안내서)를 보고 Mac에서 작성했다. Windows에서 시험해 주실 분의 보고를 기다린다.
+- Windows 애드온은 한컴 공개 문서(한글 오토메이션 매뉴얼, 2008년 Addon Action 안내서)를 보고 만들고, 한글 2024 시험에서 고쳤다. 안내서와 다른 점은 `addon/windows/useraction/src/HncUserAction.h`에 적었다.
 
 ## 알려진 제약
 

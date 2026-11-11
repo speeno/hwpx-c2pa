@@ -2,7 +2,7 @@
 
 **English** | [한국어](hangul-c2pa-support.ko.md)
 
-Checked with: Hancom Office HWP 12.30.0 (build 6544, macOS), C2PA Technical Specification 2.5, c2pa-rs 0.90.23 and 0.91.11, KS X 6101:2024, Hancom public documents (HWP Automation manual 2504, Addon Action guide, hwpx-owpml-model source). Hangul for Windows was not tested.
+Checked with: Hancom Office HWP 12.30.0 (build 6544, macOS), C2PA Technical Specification 2.5, c2pa-rs 0.90.23 and 0.91.11, KS X 6101:2024, Hancom public documents (HWP Automation manual 2504, Addon Action guide, hwpx-owpml-model source). Hangul 2024 for Windows (13.0.0.4226) was tested with the add-in; see the [case study](case-study.md).
 
 What matters in C2PA is not whether a file is signed but its **provenance and step-by-step edit history**. The problems and improvements below are judged by one question: can a Hangul document carry its own history without gaps, as testimony of the editing program? For the structure see [how-it-works.md](how-it-works.md).
 
@@ -15,11 +15,11 @@ What matters in C2PA is not whether a file is signed but its **provenance and st
 | P3 | Picture parts are renamed on save | `BinData/BIN0001.jpg` becomes `BinData/image1.jpeg`; the bytes are unchanged | The picture's own credentials survive, but names no longer match the URI list of the earlier manifest |
 | P4 | Credentials are not shown on open | Nothing indicates that a document is signed | Recipients cannot see provenance |
 | P5 | Post-save hooks differ by platform | Windows has automation events (`DocumentAfterSave`); the Mac version has neither automation nor add-ins | On Mac only an external folder watcher is possible |
-| P6 | File lock after save (Windows) | The `lock` option of save/open defaults to TRUE (automation manual); whether it applies to HWPX was not verified | An external signer may be unable to rewrite the file right after the save |
+| P6 | File lock after save (Windows) | The `lock` option of save/open defaults to TRUE (automation manual); whether it applies to HWPX was not verified. Confirmed on Hangul 2024 for Windows: the file of an open document cannot be written or replaced. `lock:false` on a save to the same path has no effect; saving to another path with `lock:false` releases the lock | An external signer may be unable to rewrite the file right after the save |
 | P7 | No registered media type | `application/hwp+zip` exists only inside the files, not at IANA; the C2PA SDK format list has no `.hwpx` | Tools do not recognise HWPX directly |
 | P8 | Relation to the existing e-signature is undefined | Hancom's model source defines `META-INF/signatures.xml`, the KS X 6101 schemas do not. The Mac version does not support documents with certificate validation | Order and scope are unclear when both signatures are used |
 | P9 | "Damaged or tampered" warnings | The Hancom forum reports a hand-edited HWPX being blocked. Files signed by this tool opened without warning on Mac; Windows was not checked | A signed file might fail to open |
-| P10 | Add-in documentation is old | The User Action guide dates from 2008 and has no save event; the guide for the newer add-on method in 2024 is not public | Third parties cannot extend Hangul reliably |
+| P10 | Add-in documentation is old | The User Action guide dates from 2008 and has no save event; the guide for the newer add-on method in 2024 is not public. Confirmed with Hangul 2024: the module is loaded only on `RegisterModule` from an automation client, its strings are ANSI, and two undocumented GUID actions signal loading. A Hangul started normally does not load it | Third parties cannot extend Hangul reliably |
 | P11 | Recompression alone breaks credentials | C2PA A.6 hashes the compressed bytes | Not a Hangul defect, but it means every save must be followed by a new signature |
 | P12 | The editing program cannot testify to the history itself | Today a tool outside Hangul records from the saved result. The editor name is copied from `version.xml`, and the changes are a summary from comparing two versions | The core of C2PA is the record of what was done, and that content remains a statement of the recording party. Anyone can rewrite `version.xml` |
 | P13 | Actions during editing leave no trace | Pasting, inserting another document, replacing a picture, using AI features such as translation or summarising, accepting or rejecting tracked changes cannot be seen from the saved package | One can tell that three paragraphs changed between versions, not that they were pasted from another document or written by AI |

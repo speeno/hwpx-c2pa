@@ -4,7 +4,8 @@
 #
 # Steps: Python 3.12 x64 (only if missing), a private virtual environment with the
 # engine, the C2PA native library, test certificates + settings (unless -NoTestCerts),
-# the add-in DLL matching the bitness of Hwp.exe, registry entries under HKCU.
+# the add-in DLL matching the bitness of Hwp.exe, registry entries under HKCU, and a
+# desktop shortcut "Hangul C2PA" that starts Hangul with the add-in loaded.
 # No administrator rights are needed. Remove with: addon\windows\useraction\register.ps1 -Remove
 #
 # Copyright (c) 2026 Dongsun Nam (speeno). MIT License.
@@ -94,4 +95,13 @@ Step "Samples and a first check" {
     & $cli history "$docs\en\3b-saved-in-hangul-resigned.hwpx"
     "samples: $docs"
 }
-Say "Done. Restart Hangul. Log: $log" "Green"
+Step "Desktop shortcut 'Hangul C2PA'" {
+    $desktop = [Environment]::GetFolderPath("Desktop")
+    $sc = (New-Object -ComObject WScript.Shell).CreateShortcut("$desktop\Hangul C2PA.lnk")
+    $sc.TargetPath = "$venv\Scripts\pythonw.exe"; $sc.Arguments = "-m hwpx_c2pa hangul"
+    $sc.WorkingDirectory = [Environment]::GetFolderPath("MyDocuments")
+    if ($script:hwp) { $sc.IconLocation = "$($script:hwp),0" }
+    $sc.Save()
+    "$desktop\Hangul C2PA.lnk"
+}
+Say "Done. Start Hangul with the 'Hangul C2PA' shortcut on the desktop. Log: $log" "Green"

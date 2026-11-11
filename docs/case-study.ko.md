@@ -6,7 +6,7 @@
 
 모든 화면과 결과는 `samples/`의 샘플과 이 저장소의 도구로 만든 것이다. 기록에 쓴 인증서는 시험용이다.
 
-환경: macOS, Hancom Office HWP 12.30.0 (6544), hwpx-c2pa 0.1.0, c2pa-python 0.38.2 + C2PA 라이브러리 0.91.11.
+환경: macOS의 Hancom Office HWP 12.30.0 (6544), Windows 11의 한글 2024 (13.0.0.4226). hwpx-c2pa 0.1.0, C2PA 라이브러리 0.91.11.
 
 ## 1. 샘플
 
@@ -68,6 +68,8 @@
 
 ## 4. 한글에서의 동작
 
+### macOS용 한글 12.30, 애드온 없음
+
 Hancom Office HWP 12.30 (macOS)에서 확인했다.
 
 | 단계 | 결과 |
@@ -77,10 +79,31 @@ Hancom Office HWP 12.30 (macOS)에서 확인했다.
 | 그림 자체의 기록 | 바이트가 그대로라 유지된다 |
 | 새 판 기록 | 이전 판과 그림을 잇고 편집 프로그램과 변경 요약을 넣는다. `Trusted` |
 
-### 아직 없는 화면
+### Windows용 한글 2024, 애드온 사용
 
-- 한글 프로그램 창과 애드온 등록 화면은 이 판에 넣지 못했다. 작업 환경에 화면 기록 권한이 없었고, Mac용 한글에는 애드인 기능이 없다(등록 화면은 Windows판 도구 메뉴에 있다).
-- Windows 애드온(`addon/windows/`)은 아직 시험하지 못했다. Windows에서 확인한 화면과 결과를 환영한다.
+Windows 11의 한글 2024(13.0.0.4226, 32비트)를 `hwpx-c2pa hangul`로 시작해 확인했다. 문서는 `samples/ko/2-signed.hwpx`를 `report.hwpx`로 복사한 것이다.
+
+| 단계 | 결과 |
+|---|---|
+| 기록된 샘플에서 "C2PA 출처" 버튼 | 출처 창이 뜬다: 판 1개, python-hwpx로 만듦 |
+| 글자 입력 후 Ctrl+S | 열려 있는 문서에 판 2가 기록된다: 편집 프로그램 Hancom Office Hangul 13.0.0.4226, 문단 1개 수정, 글자 수 403→434 |
+| 다시 입력 후 일반 저장 버튼 | 판 3: 문단 1개 추가, 글자 수 434→447, 판 2에 이어짐 |
+| 애드온 없이 한글의 원래 저장 | macOS와 같이 기록이 지워진다 |
+
+![한글에서 연 출처 창](screenshots/win-01-provenance-window.png)
+
+![Ctrl+S 뒤: 판 2개](screenshots/win-02-after-save-two-versions.png)
+
+![다음 저장 뒤: 판 3개](screenshots/win-03-third-version.png)
+
+시험으로 알게 된 한글 2024의 동작:
+
+- 2008년 안내서의 User Action 모듈 방식이 남아 있다. 다만 오토메이션 클라이언트가 `RegisterModule("UserActionDLL", 이름)`을 호출할 때만 모듈을 불러온다. 이 호출은 모듈이 불려도 False를 돌려준다.
+- 모듈 인터페이스의 문자열은 ANSI다. 한글은 모듈을 불러올 때 GUID 문자열 두 개로 `DoAction`을 호출하며, 도구 모음은 여기서 만든다.
+- 열려 있는 문서의 파일은 쓰기가 잠긴다. 같은 경로에 `SaveAs(path, "HWPX", "lock:false")`를 해도 풀리지 않는다. 다른 경로에 `lock:false`로 저장하면 풀리고, 문서는 원래 경로에 연결된 채로 남는다.
+- `ReplaceAction`은 `FileSave`와 `FileSave_S` 두 ID의 저장을 바꿔 준다.
+
+아직 없는 것: C2PA 버튼이 보이는 한글 창 캡처.
 
 ## 5. 다시 만들기
 

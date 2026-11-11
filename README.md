@@ -37,28 +37,45 @@ Author: Dongsun Nam (speeno) · License: MIT · Status: alpha (0.1.0)
 
 ![No record](docs/screenshots/03-view-after-hangul-save-no-record.png)
 
-**5. In Hangul (Windows)**: screens of the add-in in the Hangul window are being collected from the first Windows test and will be added here.
+**5. In Hangul 2024 for Windows, with the add-in**: the "C2PA 출처" button opens the provenance window for the open document.
+
+![Provenance window opened from Hangul](docs/screenshots/win-01-provenance-window.png)
+
+**6. After Ctrl+S in Hangul**: the save is recorded as version 2 in the open document itself, with the editor (Hancom Office Hangul 13.0.0.4226) and what changed.
+
+![Two versions after saving in Hangul](docs/screenshots/win-02-after-save-two-versions.png)
+
+**7. After another edit and the ordinary Save button**: version 3, chained to version 2.
+
+![Third version](docs/screenshots/win-03-third-version.png)
 
 ## Install the Hangul add-on
 
 ### Windows: add-in inside Hangul
 
-Needs Hangul for Windows and this repository (clone or ZIP). No administrator rights.
+Tested with Hangul 2024 (13.0.0.4226, 32-bit) on Windows 11. Needs this repository (clone or ZIP). No administrator rights.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File addon\windows\install.ps1 -Dll path\to\HwpxC2paAddon.dll
 ```
 
-The script installs Python 3.12 (only if missing) and the engine in a private environment, fetches the C2PA library, creates test certificates and settings, picks the 32-bit or 64-bit add-in DLL to match `Hwp.exe`, registers it for the current user (`HKCU\Software\Hnc\HwpUserAction\Modules`) and copies the samples to `Documents\hwpx-c2pa-samples`. The DLL is built by CI (artifacts `HwpxC2paAddon-Win32` and `HwpxC2paAddon-x64` of the `test` workflow); without `-Dll` the script takes it from the latest release.
+The script installs Python 3.12 (only if missing) and the engine in a private environment, fetches the C2PA library, creates test certificates and settings, picks the 32-bit or 64-bit add-in DLL to match `Hwp.exe`, registers it for the current user (`HKCU\Software\Hnc\HwpUserAction\Modules`), copies the samples to `Documents\hwpx-c2pa-samples` and puts a shortcut **Hangul C2PA** on the desktop. The DLL is built by CI (artifacts `HwpxC2paAddon-Win32` and `HwpxC2paAddon-x64` of the `test` workflow); without `-Dll` the script takes it from the latest release.
 
-Then restart Hangul. The add-in provides two actions:
+**Start Hangul with the "Hangul C2PA" shortcut** (or `hwpx-c2pa hangul [file]`). Hangul loads this kind of add-in only when a program asks it to through HWP Automation, so a Hangul started in the usual way does not show it.
 
-| Action | What it does |
+What the add-in does in Hangul:
+
+| In Hangul | What happens |
 |---|---|
-| C2PA Save & Record (`HwpxC2paSaveSign`) | Saves the document and records it as a new version: editor, change summary, previous version chained |
-| C2PA Provenance (`HwpxC2paVerify`) | Shows the origin and edit history of the open document |
+| Button **C2PA 출처** | Opens the provenance window: origin, edit history per version, pictures, hash check |
+| **Save** (Ctrl+S, Save button, File menu) and button **C2PA 저장** | Saves, then records the saved version in the open document: editor, change summary, previous version chained |
+| **Save as** | Hangul's own dialog, then the new file is recorded with the old file as its previous version |
+| Documents that are not HWPX | Saved as usual, nothing recorded |
 
-Status: the installer and the add-in are in their first test on Hangul for Windows; results and screens will follow. To remove: `addon\windows\useraction\register.ps1 -Remove`.
+- Saving is taken over with `ReplaceAction`. To leave Hangul's own Save alone, set `HKCU\Software\hwpx-c2pa\ReplaceSave` (DWORD) to 0 and use the button.
+- Hangul keeps the file of an open document locked. The add-in saves a temporary copy first, which releases the lock, and then puts the recorded file in place of the document.
+- The last recorded version of each document is kept under `%LOCALAPPDATA%\hwpx-c2pa\parents`. If a save bypasses the add-in and Hangul drops the record, the next recorded save still chains to that copy.
+- Not yet tested: the `install.ps1` in this repository as a whole (its steps were run on the test machine in an earlier form), 64-bit Hangul, Hangul 2020 and 2022, and "Save as". To remove: `addon\windows\useraction\register.ps1 -Remove`.
 
 ### macOS, or without an add-in: folder watcher
 
@@ -140,11 +157,11 @@ for step in verify(v2).history:      # newest first
 |---|---|---|---|
 | `hwpx-c2pa watch`, `addon/macos/install-watch.sh` | macOS, Windows, Linux | Watches a folder and records each saved `.hwpx` as a new version (previous version chained, change summary). Needs no Hangul API | Tested, including files saved by Hangul 12.30 for Mac |
 | `addon/windows/automation/hwpx_c2pa_hangul.py` | Windows, Hangul 2020+ | Attaches to the running Hangul, shows the provenance on open, records a new version right after save (HWP Automation events) | **Not tested** |
-| `addon/windows/useraction/` (C++ DLL) | Windows | Hangul add-in (User Action Module) with "Save & Record" and "Show provenance" buttons | Builds in CI. **Not tested in Hangul** |
+| `addon/windows/useraction/` (C++ DLL) + `hwpx-c2pa hangul` | Windows | Hangul add-in (User Action Module): buttons, provenance window, every save recorded in the open document | Tested with Hangul 2024 (13.0.0.4226, 32-bit): versions 1 to 3 recorded through Ctrl+S and the Save button |
 
 - Hangul for Mac has no add-in or automation interface, so the folder watcher is the only route there.
 - Hancom allows HWP Automation free of charge for personal, non-commercial use only; commercial use needs Hancom's approval. The MIT licence of this repository covers this repository's code only.
-- The Windows add-ons were written on a Mac from Hancom's public documents (HWP Automation manual, Addon Action guide). Test reports from Windows users are welcome.
+- The Windows add-in was written from Hancom's public documents (HWP Automation manual, Addon Action guide of 2008) and corrected in tests with Hangul 2024. What differs from the guide is noted in `addon/windows/useraction/src/HncUserAction.h`.
 
 ## Known limits
 

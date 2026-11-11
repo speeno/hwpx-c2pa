@@ -1,4 +1,4 @@
-"""Command line: hwpx-c2pa {sign, verify, history, view, report, check, watch, info, fetch-lib, dev-certs}.
+"""Command line: hwpx-c2pa {sign, verify, history, view, hangul, report, check, watch, info, fetch-lib, dev-certs}.
 
 Signer settings come from the options, else from the environment
 (HWPX_C2PA_CERT, HWPX_C2PA_KEY, HWPX_C2PA_ALG, HWPX_C2PA_TSA, HWPX_C2PA_TRUST),
@@ -151,6 +151,27 @@ def cmd_watch(args) -> int:
     return 0
 
 
+def cmd_hangul(args) -> int:
+    """Start Hangul for Windows with the add-in loaded (the C2PA buttons and the save hook).
+
+    Hangul loads a User Action module only when an automation client registers it, so
+    this command starts Hangul through automation, registers the module and leaves the
+    window to the user.
+    """
+    if sys.platform != "win32":
+        sys.exit("error: 'hangul' needs Hangul for Windows")
+    try:
+        import win32com.client
+    except ImportError:
+        sys.exit('error: pywin32 is missing; install with  pip install "hwpx-c2pa[windows]"')
+    hwp = win32com.client.Dispatch("HWPFrame.HwpObject")
+    hwp.RegisterModule("UserActionDLL", args.module)  # returns False even when it loads
+    hwp.XHwpWindows.Item(0).Visible = True
+    if args.file:
+        hwp.Open(str(Path(args.file).resolve()), "", "")
+    return 0
+
+
 def cmd_info(args) -> int:
     from . import _lib
     info = {"hwpx-c2pa": __version__,
@@ -245,6 +266,10 @@ def build_parser() -> argparse.ArgumentParser:
     w.add_argument("--once", action="store_true", help="scan once and exit")
     _signer_options(w)
     w.set_defaults(func=cmd_watch)
+
+    hg = sub.add_parser("hangul", help="start Hangul for Windows with the C2PA add-in loaded")
+    hg.add_argument("file", nargs="?"), hg.add_argument("--module", default="HwpxC2pa")
+    hg.set_defaults(func=cmd_hangul)
 
     i = sub.add_parser("info", help="versions, native library, config file")
     i.add_argument("--json", action="store_true")

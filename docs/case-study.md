@@ -6,7 +6,7 @@ This example shows an HWPX document carrying where it came from and who did what
 
 Every screen and result below was produced with the samples in `samples/` and the tools in this repository. The certificates used for recording are test certificates.
 
-Environment: macOS, Hancom Office HWP 12.30.0 (6544), hwpx-c2pa 0.1.0, c2pa-python 0.38.2 + C2PA library 0.91.11.
+Environment: macOS with Hancom Office HWP 12.30.0 (6544), and Windows 11 with Hangul 2024 (13.0.0.4226); hwpx-c2pa 0.1.0, C2PA library 0.91.11.
 
 ## 1. Samples
 
@@ -68,6 +68,8 @@ Changing the amount in the body makes the document differ from its last record. 
 
 ## 4. Behaviour in Hangul
 
+### Hangul 12.30 for macOS, no add-in
+
 Checked with Hancom Office HWP 12.30 (macOS).
 
 | Step | Result |
@@ -77,10 +79,31 @@ Checked with Hancom Office HWP 12.30 (macOS).
 | The picture's own record | Kept, because the bytes are unchanged |
 | Recording the new version | Chained to the previous version and the picture, with editor and change summary; `Trusted` |
 
-### Screens not yet included
+### Hangul 2024 for Windows, with the add-in
 
-- The Hangul application window and the add-on registration screen are not in this edition. The working environment had no screen-recording permission, and Hangul for Mac has no add-in feature (the registration screen is in the Tools menu of the Windows version).
-- The Windows add-ons (`addon/windows/`) are untested; screens and results from Windows are welcome.
+Checked with Hangul 2024 (13.0.0.4226, 32-bit) on Windows 11, started with `hwpx-c2pa hangul`. The document is `samples/ko/2-signed.hwpx`, copied as `report.hwpx`.
+
+| Step | Result |
+|---|---|
+| Button "C2PA 출처" on the recorded sample | The provenance window opens: 1 version, created with python-hwpx |
+| Type text, Ctrl+S | Version 2 is recorded in the open document: editor Hancom Office Hangul 13.0.0.4226, 1 paragraph modified, 403→434 characters |
+| Type again, ordinary Save button | Version 3: 1 paragraph added, 434→447 characters, chained to version 2 |
+| Hangul's own save, without the add-in | The record is removed, as on macOS |
+
+![Provenance window opened from Hangul](screenshots/win-01-provenance-window.png)
+
+![After Ctrl+S: two versions](screenshots/win-02-after-save-two-versions.png)
+
+![After the next save: three versions](screenshots/win-03-third-version.png)
+
+What the tests showed about Hangul 2024:
+
+- The User Action module mechanism of the 2008 guide is still present, but a module is loaded only when an automation client calls `RegisterModule("UserActionDLL", name)`; the call returns False even when the module loads.
+- The strings of the module interface are ANSI. Hangul also calls `DoAction` with two GUID strings when the module is loaded; the toolbar is set up there.
+- The file of an open document is locked for writing. `SaveAs(path, "HWPX", "lock:false")` on the same path does not release it; saving to another path with `lock:false` does, and leaves the document bound to its own path.
+- `ReplaceAction` redirects Save for the IDs `FileSave` and `FileSave_S`.
+
+Not yet included: a capture of the Hangul window with the C2PA buttons.
 
 ## 5. Reproducing
 
