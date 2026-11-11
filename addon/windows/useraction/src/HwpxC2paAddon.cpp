@@ -1,6 +1,6 @@
 // hwpx-c2pa add-on for Hangul (Windows): a User Action Module.
 //
-// STATUS: experimental. Builds in CI (MSVC, Win32); NOT YET TESTED IN HANGUL. Written against
+// STATUS: experimental. Hangul 2024 (13.0.0.4226) loads the module and calls it; see README. Written against
 // Hancom's "Addon Action" guide (2008) and the HWP Automation manual (2504).
 //
 // Actions
@@ -16,7 +16,7 @@
 //
 // Copyright (c) 2026 Dongsun Nam (speeno). MIT License.
 #include <windows.h>
-#include <tchar.h>
+#include <cstring>
 #include <cwchar>
 #include <string>
 
@@ -25,7 +25,7 @@
 
 namespace {
 
-const TCHAR* kActions[] = {_T("HwpxC2paSaveSign"), _T("HwpxC2paVerify"), _T("HwpxC2paToolbar")};
+const char* kActions[] = {"HwpxC2paSaveSign", "HwpxC2paVerify", "HwpxC2paToolbar"};
 const wchar_t* kSerializePath = L"hwpx-c2pa\\toolbar_v1";
 
 std::wstring Utf8ToWide(const std::string& s) {
@@ -187,16 +187,21 @@ int InstallToolbar(IDispatch* hwp) {
     disp::Ptr windows = disp::GetObject(hwp, L"XHwpWindows");
     disp::Ptr window = windows ? disp::GetObject(windows.get(), L"Active_XHwpWindow") : disp::Ptr();
     disp::Ptr layout = window ? disp::GetObject(window.get(), L"XHwpToolbarLayout") : disp::Ptr();
+    Trace(L"toolbar: layout", layout ? L"ok" : L"none");
     if (!layout) return 0;
     disp::CallString(layout.get(), L"ChangeSerializePath", kSerializePath);
-    if (!disp::GetBool(layout.get(), L"IsNewSerializePath", false)) return 1;  // already added
+    bool fresh = disp::GetBool(layout.get(), L"IsNewSerializePath", false);
+    Trace(L"toolbar: IsNewSerializePath", fresh ? L"true" : L"false");
+    if (!fresh) return 1;  // already added
     disp::Ptr bar = disp::CallObject(layout.get(), L"CreateToolbar", L"C2PA", nullptr, 0);
+    Trace(L"toolbar: CreateToolbar", bar ? L"ok" : L"none");
     if (!bar) return 0;
     const std::wstring saveId = L"HwpxC2paSaveSign", verifyId = L"HwpxC2paVerify";
     disp::Ptr b1 = disp::CallObject(layout.get(), L"CreateToolbarButton",
                                     L"C2PA 기록 저장 (Save && Record)", &saveId, 0);
     disp::Ptr b2 = disp::CallObject(layout.get(), L"CreateToolbarButton",
                                     L"C2PA 출처 확인 (Provenance)", &verifyId, 0);
+    Trace(L"toolbar: buttons", (b1 && b2) ? L"ok" : L"missing");
     for (disp::Ptr* b : {&b1, &b2}) {
         if (!*b) continue;
         disp::CallLongLong(b->get(), L"ModifyStyle", 2, 1);  // text only: no image supplied
@@ -207,25 +212,28 @@ int InstallToolbar(IDispatch* hwp) {
 
 class Module : public IHncUserActionModule {
 public:
-    LPCTSTR EnumAction(int i) override {
+    LPCSTR EnumAction(int i) override {
         Trace(L"EnumAction", i == 0 ? L"0" : L"n");
         return (i >= 0 && i < (int)(sizeof(kActions) / sizeof(kActions[0]))) ? kActions[i] : nullptr;
     }
-    BOOL GetActionImage(LPCTSTR, UINT, HBITMAP* bmp, int* index) override {
+    BOOL GetActionImage(LPCSTR, UINT, HBITMAP* bmp, int* index) override {
         if (bmp) *bmp = nullptr;  // text-only buttons
         if (index) *index = 0;
         return FALSE;
     }
-    BOOL UpdateUI(LPCTSTR, LPDISPATCH, UINT* state) override {
+    BOOL UpdateUI(LPCSTR, LPDISPATCH, UINT* state) override {
         if (state) *state = 0;
         return TRUE;
     }
-    int DoAction(LPCTSTR action, LPDISPATCH hwp) override {
-        Trace(L"DoAction", action ? action : L"(null)");
+    int DoAction(LPCSTR action, LPDISPATCH hwp) override {
+        Trace(L"DoAction", action ? std::wstring(action, action + strlen(action)).c_str() : L"(null)");
         if (!action || !hwp) return 0;
-        if (_tcscmp(action, kActions[0]) == 0) return SaveAndSign(hwp);
-        if (_tcscmp(action, kActions[1]) == 0) return Verify(hwp);
-        if (_tcscmp(action, kActions[2]) == 0) return InstallToolbar(hwp);
+        if (strcmp(action, kActions[0]) == 0) return SaveAndSign(hwp);
+        if (strcmp(action, kActions[1]) == 0) return Verify(hwp);
+        if (strcmp(action, kActions[2]) == 0) return InstallToolbar(hwp);
+        // Load events sent by Hangul: put the toolbar in place (once per layout name).
+        if (_stricmp(action, HNC_USERACTION_ON_INITIAL_LOAD) == 0 ||
+            _stricmp(action, HNC_USERACTION_ON_LOAD) == 0) return InstallToolbar(hwp);
         return 0;
     }
 };
