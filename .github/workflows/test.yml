@@ -18,7 +18,15 @@ jobs:
       - run: pytest -q
   addon-build:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [Win32, x64]
     steps:
       - uses: actions/checkout@v4
-      - run: cmake -A Win32 -S addon/windows/useraction -B build
+      - run: cmake -A ${{ matrix.arch }} -S addon/windows/useraction -B build
       - run: cmake --build build --config Release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HwpxC2paAddon-${{ matrix.arch }}
+          path: build/Release/HwpxC2paAddon.dll
+          if-no-files-found: error
