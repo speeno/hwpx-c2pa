@@ -1,13 +1,14 @@
-# 샘플 / Samples
+# Samples
 
-한국어(`ko/`)와 영어(`en/`) 샘플 문서. 설명은 [../docs/case-study.md](../docs/case-study.md).
+**English** | [한국어](README.ko.md)
+
 Korean (`ko/`) and English (`en/`) sample documents; see [../docs/case-study.md](../docs/case-study.md).
 
 ```bash
-hwpx-c2pa history ko/3b-saved-in-hangul-resigned.hwpx           # 판 1(만듦) → 판 2(한글에서 편집) / v1 created → v2 edited in Hangul
-hwpx-c2pa view    ko/3b-saved-in-hangul-resigned.hwpx --trust test-root-ca.pem
-hwpx-c2pa verify  ko/2-signed.hwpx --trust test-root-ca.pem     # 신뢰됨 / Trusted
-hwpx-c2pa verify  ko/4-tampered.hwpx                            # 무효: 기록 이후 바뀜 / Invalid: changed after the record
+hwpx-c2pa history en/3b-saved-in-hangul-resigned.hwpx           # v1 created → v2 edited in Hangul
+hwpx-c2pa view    en/3b-saved-in-hangul-resigned.hwpx --trust test-root-ca.pem
+hwpx-c2pa verify  en/2-signed.hwpx --trust test-root-ca.pem     # Trusted
+hwpx-c2pa verify  en/4-tampered.hwpx                            # Invalid: changed after the record
 ```
 
-서명 인증서는 시험용이다. 개인 키는 저장소에 없다. / The signing certificates are for testing; the private key is not in the repository.
+The certificates are for testing; the private key is not in the repository.
