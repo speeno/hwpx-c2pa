@@ -18,6 +18,7 @@
 #include <windows.h>
 #include <cstring>
 #include <cwchar>
+#include <initializer_list>
 #include <string>
 
 #include "Dispatch.h"
@@ -124,6 +125,49 @@ const wchar_t* kCliMissing =
     L"hwpx-c2pa 명령을 실행할 수 없습니다. 설치 후 다시 시도하십시오.\n"
     L"Cannot run the hwpx-c2pa tool. Install it (pip install hwpx-c2pa) and try again.";
 
+// Calls obj.method(s1, s2, ...) with string arguments; true if the call succeeded and
+// did not return FALSE.
+bool CallStrings(IDispatch* obj, const wchar_t* method, std::initializer_list<const wchar_t*> strs) {
+    VARIANT args[4];
+    UINT n = (UINT)strs.size();
+    if (n > 4) return false;
+    UINT i = n;
+    for (const wchar_t* str : strs) {  // IDispatch takes arguments in reverse order
+        --i;
+        VariantInit(&args[i]);
+        args[i].vt = VT_BSTR;
+        args[i].bstrVal = SysAllocString(str);
+    }
+    VARIANT result;
+    VariantInit(&result);
+    HRESULT hr = disp::Invoke(obj, method, DISPATCH_METHOD, args, n, &result);
+    for (UINT k = 0; k < n; ++k) VariantClear(&args[k]);
+    bool ok = SUCCEEDED(hr) && !(result.vt == VT_BOOL && result.boolVal == VARIANT_FALSE);
+    VariantClear(&result);
+    return ok;
+}
+
+// HKCU\\Software\\hwpx-c2pa\\ReplaceSave (DWORD): 0 leaves Hangul's own Save alone. Default 1.
+bool ReplaceSaveEnabled() {
+    DWORD value = 1, size = sizeof(value);
+    RegGetValueW(HKEY_CURRENT_USER, L"Software\\hwpx-c2pa", L"ReplaceSave", RRF_RT_REG_DWORD, nullptr,
+                 &value, &size);
+    return value != 0;
+}
+
+// Save (menu, toolbar, Ctrl+S) becomes "save and record". ReplaceAction only redirects
+// menu and shortcut calls; HAction.Run("FileSave") still runs Hangul's own save.
+void ReplaceSave(IDispatch* hwp) {
+    if (!ReplaceSaveEnabled()) return;
+    bool ok = CallStrings(hwp, L"ReplaceAction", {L"FileSave", L"HwpxC2paSaveSign"});
+    Trace(L"ReplaceAction FileSave", ok ? L"ok" : L"failed");
+}
+
+bool RunBuiltIn(IDispatch* hwp, const wchar_t* action) {
+    disp::Ptr haction = disp::GetObject(hwp, L"HAction");
+    return haction && CallStrings(haction.get(), L"Run", {action});
+}
+
 // The open document is locked by Hangul, so the record went into <name>.c2pa.hwpx.
 // Offer to close the document, put that file in its place and open it again, so
 // that the document the user works on is the one that carries the record.
@@ -176,22 +220,37 @@ int SaveAndSign(IDispatch* hwp) {
         }
     }
 
-    // IXHwpDocument.Save(save_if_dirty): asks for a name if the document has none.
-    disp::CallBool(doc.get(), L"Save", false);
-    std::wstring path = disp::GetString(doc.get(), L"FullName");
+    // Save without keeping the file locked ("lock:false"), so the record can go into
+    // the very file the user has open. A document without a name, or in another
+    // format, goes through Hangul's own save first (it asks for a name).
+    bool saved;
+    if (IsHwpx(before)) {
+        saved = CallStrings(hwp, L"SaveAs", {before.c_str(), L"HWPX", L"lock:false"});
+        Trace(L"SaveAs lock:false", saved ? L"ok" : L"failed");
+        if (!saved) saved = RunBuiltIn(hwp, L"FileSave");
+    } else {
+        saved = RunBuiltIn(hwp, L"FileSave");
+        Trace(L"built-in FileSave", saved ? L"ok" : L"failed");
+    }
+    doc = ActiveDocument(hwp);
+    std::wstring path = doc ? disp::GetString(doc.get(), L"FullName") : L"";
     int result = 0;
     if (!IsHwpx(path)) {
-        Notify(L"HWPX 형식으로 저장된 문서만 기록합니다.\nOnly documents saved as HWPX are recorded.",
-               MB_ICONWARNING);
+        result = saved ? 1 : 0;  // not an HWPX document: saved as usual, nothing to record
     } else {
+        if (!IsHwpx(before)) {  // first save of a new document: write once more without the lock
+            bool again = CallStrings(hwp, L"SaveAs", {path.c_str(), L"HWPX", L"lock:false"});
+            Trace(L"SaveAs lock:false (new document)", again ? L"ok" : L"failed");
+        }
         std::wstring args = L"sign " + Quote(path);
         if (!parentCopy.empty()) args += L" --parent " + Quote(parentCopy);
         std::wstring out;
         int code = RunCli(args, &out);
+        Trace(L"sign exit", std::to_wstring(code).c_str());
         if (code == -1) Notify(kCliMissing, MB_ICONERROR);
         else if (code != 0) Notify(L"C2PA 기록 실패 / recording failed\n\n" + out, MB_ICONERROR);
         else if (out.find(L"locked") != std::wstring::npos)
-            // Hangul keeps the saved file locked; the tool wrote <name>.c2pa.hwpx instead.
+            // Hangul still holds the file; the tool wrote <name>.c2pa.hwpx instead.
             SwapInRecordedCopy(hwp, doc.get(), path);
         result = code == 0 ? 1 : 0;
     }
@@ -270,7 +329,10 @@ public:
         if (strcmp(action, kActions[2]) == 0) return InstallToolbar(hwp);
         // Load events sent by Hangul: put the toolbar in place (once per layout name).
         if (_stricmp(action, HNC_USERACTION_ON_INITIAL_LOAD) == 0 ||
-            _stricmp(action, HNC_USERACTION_ON_LOAD) == 0) return InstallToolbar(hwp);
+            _stricmp(action, HNC_USERACTION_ON_LOAD) == 0) {
+            ReplaceSave(hwp);
+            return InstallToolbar(hwp);
+        }
         return 0;
     }
 };
