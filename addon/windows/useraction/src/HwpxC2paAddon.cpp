@@ -207,6 +207,7 @@ Module g_module;
 
 }  // namespace
 
-extern "C" __declspec(dllexport) IHncUserActionModule* __stdcall QueryUserActionInterface() {
+// Exported through HwpxC2paAddon.def.
+extern "C" IHncUserActionModule* __stdcall QueryUserActionInterface() {
     return &g_module;
 }
